@@ -26,6 +26,9 @@ if [ -n "$HAD_GIT" ]; then
   mv /tmp/publish-git-keep publish/.git
 fi
 cp -r stripped/src stripped/test res lib tools build.sh TODO.md publish/
+# strip.py stays private (dev-only generator): the public tree gets code,
+# never the tooling that made it.
+rm -f publish/tools/strip.py
 # No duplicate tree: the stripped mirror is an intermediate — its contents
 # now live directly under publish/, so remove it.
 rm -rf stripped
@@ -53,14 +56,14 @@ if [ ! -d .git ]; then
   git config user.name "john.patrick" 2>/dev/null || true
   git config user.email >/dev/null 2>&1 || git config user.email "john.patrick101.help@gmail.com"
   git add -A
-  git commit -qm "stripped snapshot $(date '+%Y-%m-%d %H:%M')"
+  git commit -qm "snapshot $(date '+%Y-%m-%d %H:%M')"
   echo "publish repo initialized + committed"
 else
   git add -A
   if git diff --cached --quiet; then
     echo "publish/ unchanged, nothing to commit"
   else
-    git commit -qm "stripped snapshot $(date '+%Y-%m-%d %H:%M')"
+    git commit -qm "snapshot $(date '+%Y-%m-%d %H:%M')"
     echo "publish/ recommitted"
   fi
 fi
