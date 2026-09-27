@@ -30,21 +30,32 @@ compile() {
   rm -rf out
   mkdir -p out
   cp -r res/. out/
-  # shellcheck disable=SC2046
-  "$JAVAC_BIN" -encoding UTF-8 -cp "$LIB" -d out $(find src test -name '*.java')
+  # test/ is optional (published trees ship code only): compile it when present.
+  SOURCES="$(find src -name '*.java')"
+  if [ -d test ]; then
+    # shellcheck disable=SC2046
+    SOURCES="$SOURCES $(find test -name '*.java')"
+  fi
+  # shellcheck disable=SC2086
+  "$JAVAC_BIN" -encoding UTF-8 -cp "$LIB" -d out $SOURCES
 }
 
 run_tests() {
   # Each test runs in a fresh temp dir: Level/region files never touch
   # the project, and tests can't see each other's saves.
   rm -rf /tmp/rbtest
+  found=0
   for t in $(cd out && find . -name '*Test.class' | sed 's|^\./||; s|\.class$||; s|/|.|g'); do
+    found=1
     d="/tmp/rbtest/$(echo "$t" | tr . _)"
     mkdir -p "$d"
     echo "=== $t ==="
     (cd "$d" && "$JAVA_BIN" -cp "$ROOT/out:$ROOT/res:$LIB" "$t") || exit 1
   done
   rm -rf /tmp/rbtest
+  if [ "$found" = "0" ]; then
+    echo "(no tests in this tree)"
+  fi
 }
 
 case "${1:-build}" in
@@ -52,6 +63,9 @@ case "${1:-build}" in
   run) shift; compile; echo BUILD_OK; "$JAVA_BIN" -cp "out:res:$LIB" com.strata.Boot "$@" ;;
   test) compile; echo BUILD_OK; run_tests ;;
   strip)
+    if [ ! -f tools/strip.py ]; then
+      echo "strip unavailable in this tree (dev-only tool)"; exit 1
+    fi
     rm -rf stripped
     python3 tools/strip.py || exit 1
     # Prove the mirror is real code, not approximate text: it must compile.
