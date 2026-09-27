@@ -8,21 +8,51 @@
 set -e
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
-PINNED_JDK="/Users/john.patrick/Library/Java/JavaVirtualMachines/temurin-17.0.19/Contents/Home"
+# JDK discovery (no machine-specific paths — must work on a fresh clone):
+# JAVA_HOME if 17+, else javac on PATH if 17+, else a Temurin-style install
+# under ~/Library, /Library or /usr/lib/jvm. 17.x preferred (the verified
+# runtime for this LWJGL2 tree); 18+ accepted as fallback.
 # Honor JAVA_HOME only if it is actually 17+ (Path.of and friends need it);
-# otherwise fall back to the pinned JDK instead of failing obscurely.
+# otherwise fall back to discovery instead of failing obscurely.
 pick_jdk() {
   if [ -n "$JAVA_HOME" ] && "$JAVA_HOME/bin/javac" -version 2>&1 | grep -qE 'javac (1[7-9]|[2-9][0-9])'; then
     echo "$JAVA_HOME"
-  else
-    echo "$PINNED_JDK"
+    return
   fi
+  if javac -version 2>&1 | grep -qE 'javac (1[7-9]|[2-9][0-9])'; then
+    echo ""
+    return
+  fi
+  for want in 'javac 17' 'javac (1[89]|[2-9][0-9])'; do
+    for base in "$HOME/Library/Java/JavaVirtualMachines" /Library/Java/JavaVirtualMachines /usr/lib/jvm; do
+      for d in "$base"/*/ "$base"; do
+        for j in "$d/Contents/Home" "$d"; do
+          if [ -x "$j/bin/javac" ] && "$j/bin/javac" -version 2>&1 | grep -qE "$want"; then
+            echo "$j"
+            return
+          fi
+        done
+      done
+    done
+  done
+  echo "NOJDK"
 }
 JDK_HOME="$(pick_jdk)"
-JAVAC_BIN="$JDK_HOME/bin/javac"
-JAVA_BIN="$JDK_HOME/bin/java"
+if [ "$JDK_HOME" = "NOJDK" ]; then
+  echo "need a JDK 17+: set JAVA_HOME or put javac 17+ on PATH" >&2
+  exit 1
+fi
+if [ -z "$JDK_HOME" ]; then
+  JAVAC_BIN="javac"
+  JAVA_BIN="java"
+else
+  JAVAC_BIN="$JDK_HOME/bin/javac"
+  JAVA_BIN="$JDK_HOME/bin/java"
+fi
 LIBDIR="$ROOT/lib"
 LIB="$LIBDIR/lwjgl.jar:$LIBDIR/lwjgl_util.jar:$LIBDIR/jinput.jar"
+# Temp roots honor the platform (macOS sets TMPDIR, Linux usually /tmp).
+TMPDIR="${TMPDIR:-/tmp}"
 
 compile() {
   # Clean first: renamed/moved classes would otherwise leave stale .class
@@ -43,16 +73,16 @@ compile() {
 run_tests() {
   # Each test runs in a fresh temp dir: Level/region files never touch
   # the project, and tests can't see each other's saves.
-  rm -rf /tmp/rbtest
+  rm -rf "$TMPDIR/rbtest"
   found=0
   for t in $(cd out && find . -name '*Test.class' | sed 's|^\./||; s|\.class$||; s|/|.|g'); do
     found=1
-    d="/tmp/rbtest/$(echo "$t" | tr . _)"
+    d="$TMPDIR/rbtest/$(echo "$t" | tr . _)"
     mkdir -p "$d"
     echo "=== $t ==="
     (cd "$d" && "$JAVA_BIN" -cp "$ROOT/out:$ROOT/res:$LIB" "$t") || exit 1
   done
-  rm -rf /tmp/rbtest
+  rm -rf "$TMPDIR/rbtest"
   if [ "$found" = "0" ]; then
     echo "(no tests in this tree)"
   fi
@@ -69,10 +99,10 @@ case "${1:-build}" in
     rm -rf stripped
     python3 tools/strip.py || exit 1
     # Prove the mirror is real code, not approximate text: it must compile.
-    rm -rf /tmp/stripcheck
-    mkdir -p /tmp/stripcheck
+    rm -rf "$TMPDIR/stripcheck"
+    mkdir -p "$TMPDIR/stripcheck"
     # shellcheck disable=SC2046
-    "$JAVAC_BIN" -encoding UTF-8 -cp "$LIB" -d /tmp/stripcheck $(find stripped/src stripped/test -name '*.java') || exit 1
+    "$JAVAC_BIN" -encoding UTF-8 -cp "$LIB" -d "$TMPDIR/stripcheck" $(find stripped/src stripped/test -name '*.java') || exit 1
     echo STRIP_OK ;;
   *) echo "usage: ./build.sh [build|run|test|strip]"; exit 1 ;;
 esac
