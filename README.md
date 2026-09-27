@@ -6,4 +6,5 @@ through torch-lit midnight.
 ```sh
 ./build.sh        # compile everything into out/
 ./build.sh run    # compile and launch the game
+./build.sh test   # compile and run the headless suite
 ```
