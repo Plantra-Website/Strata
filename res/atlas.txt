@@ -1,0 +1,68 @@
+# Texture layout: per-tile PNGs under res/textures/, stitched at startup.
+#
+#   res/textures/blocks/<name>.png   16x16 block tiles (slot order = TILES
+#   order in AtlasStitcher, NOT filename order — names carry no numbers so
+#   faces can point at names independently)
+#   res/textures/items/               (empty — arrives with inventory/drops, P3)
+#
+# Atlas = 256x256, 16-across, rows as needed (uv() maps slots to rects).
+# To add art: drop the PNG, append its path to AtlasStitcher.TILES, point a
+# block at the new slot (by name via slot(), never by magic index).
+# AtlasTest fails the build on: missing/unsized PNGs, block pointing outside
+# the manifest, unknown slot() names.
+#
+#   res/textures/blocks/tinted/     grayscale tintables for the biome-tint
+#   pass (NOT stitched yet): re-drop leaves_oak.png, leaves_oak_opaque.png,
+#   tallgrass.png, grass_side_overlay.png here when you have them (they were
+#   here before and got deleted by mistake — sorry). See TODO "Biome tint".
+#
+# Current slots (row 0):
+#  0 grass_top  1 grass_side  2 dirt      3 stone   4 cobblestone  5 sand
+#  6 bedrock    7 coal_ore    8 iron_ore  9 gold_ore 10 diamond_ore 11 lapis_ore
+#  12 gravel   13 lava_still 14 torch_on 15 leaf
+# Row 1:
+#  16 rose  17 dandelion  18 tallgrass  19 log_oak  20 log_oak_top  21 sapling
+#  22-31 destroy_stage_0..9 (P4 crack overlay, rendered by LevelRenderer.renderHit)
+# Row 2:
+#  32 grass_side_overlay  33 planks_oak (block id 21; leaves live at 15, row 0)
+# (Old blocks/torch.png deleted from disk; slot 14 now points at torch_on —
+# slots after 14 never moved.)
+# Texture packs (NOT stitched here): zip files under pack/ whose
+# textures/blocks/<name>.png entries override same-named tiles at boot
+# (see TexturePack). Loose black.png/white.png in blocks/ are spare art,
+# not stitched — pack material.
+# Interim tint (AtlasStitcher.TINTS, baked at stitch, sources stay pure):
+#  tallgrass/grass_top/grass_side_overlay -> plains grass (145,189,89)
+#  leaves_oak_opaque -> plains foliage (119,171,47)
+# Overlay mechanism: CubeBlock(top, side, bottom, overlay, light) emits the
+# overlay as a second side quad (same brightness, cutout alpha, 0.002 out so
+# it never z-fights). Staged (not stitched) in tinted/: leaves_oak.png
+# (fancy cutout variant — needs non-occluding leaves, not built).
+#
+# Interim tint: tallgrass.png is grayscale and bakes MC plains green
+# (145,189,89) at stitch time (AtlasStitcher.TINTS) — source stays pure.
+# Staged (not stitched) in tinted/: leaves_oak.png (fancy cutout variant),
+# awaiting non-occluding leaves + the runtime tint pass.
+#
+# Multi-sided blocks (grass: top/side/dirt-bottom, log: top/side) resolve
+# faces through CubeBlock(top, side, bottom). Break particles and hotbar
+# icons show the side via Block.particleTile() — tile==id-1 is dead.
+#
+# Old hand-painted dupes (grass/cobble/flower/wood/coal/iron/gold/diamond
+# .png) were superseded by your art and removed; leaf.png + tuft.png were
+# restored seed-identical via AtlasPatch after an accidental delete.
+#
+# History: tiles 0-11 came from the lost TileArt.java era; 12-15 painted by
+# tools/AtlasPatch.java, split losslessly by tools/SplitAtlas.java
+# (parity-checked). res/terrain.png is deleted; the pre-split original
+# survives at /tmp/terrain.png.pre-veg (copy it somewhere durable) and
+# terrain.png.bak in the project root.
+#
+# GUI sheets (NOT stitched — bound directly, see Textures.loadTexture):
+#   res/textures/gui/widgets.png  256x256 official widgets (hotbar 182x22 at
+#     (0,0), 24x24 selector at (0,22); Gui stretches both over the 22px grid)
+#   res/textures/gui/icons.png    256x256 official icons, RESERVED for hearts/
+#     hunger/armor when survival stats land (P3) — not bound yet.
+#   res/textures/gui/container/inventory.png  256 sheet, 176x166 body at
+#     (0,0): main store slots (8,84) 18px pitch, hotbar row (8,142). Gui maps
+#     stock slots onto those rects 1:1 (no stretch).
