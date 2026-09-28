@@ -39,3 +39,5 @@ ESC · Quit: Delete (Fn+⌫ on laptops).
 You start with 8 torches (no recipe yet). All keys rebindable in
 `options.txt` (written on exit); view distance + sensitivity + gui scale
 live there too.
+
+Strata is an original project, not affiliated with or endorsed by Mojang.
