@@ -362,6 +362,14 @@ public class Level implements BlockView, LightWorld {
       }
    }
 
+   public void warmCarves(int minCcx, int minCcz, int maxCcx, int maxCcz) {
+      for (int ccx = minCcx; ccx <= maxCcx; ccx++) {
+         for (int ccz = minCcz; ccz <= maxCcz; ccz++) {
+            this.gen.touchCarve(ccx, ccz);
+         }
+      }
+   }
+
    public void loadAllRegions() {
       if (!this.loadFromDisk) {
          return;

@@ -34,6 +34,10 @@ public class LevelRenderer implements LevelListener {
    };
    private final AtomicLong meshSeq = new AtomicLong();
    private final BlockingQueue<Chunk> meshQueue = new PriorityBlockingQueue<>(128, MESH_ORDER);
+   private volatile long carveOffer = Long.MIN_VALUE;
+   private int lastCx = Integer.MIN_VALUE;
+   private int lastCz = Integer.MIN_VALUE;
+   private int lastRadius = Integer.MIN_VALUE;
    private Frustum cachedFrustum;
    private final MeshBuilder crackScratch = new MeshBuilder();
    public int drawn0;
@@ -109,6 +113,26 @@ public class LevelRenderer implements LevelListener {
           worker.setDaemon(true);
           worker.start();
        }
+       Thread carveAhead = new Thread(() -> {
+          long last = Long.MIN_VALUE;
+          while (true) {
+             try {
+                long c = this.carveOffer;
+                if (c != last) {
+                   last = c;
+                   int pcx = (int)(c >> 32);
+                   int pcz = (int)(c & 0xFFFFFFFFL);
+                   int r = Config.VIEW_RADIUS + 1;
+                   this.level.warmCarves(pcx - r, pcz - r, pcx + r, pcz + r);
+                }
+                Thread.sleep(500L);
+             } catch (InterruptedException e) {
+                return;
+             }
+          }
+       }, "carve-ahead");
+       carveAhead.setDaemon(true);
+       carveAhead.start();
 
       this.ensureRadius(0, 0, Config.PREBUILD_RADIUS);
       int queued = 0;
@@ -242,8 +266,14 @@ public class LevelRenderer implements LevelListener {
       if (layer == 0) {
          int pcx = chunkCoord(px);
          int pcz = chunkCoord(pz);
-         this.ensureRadius(pcx, pcz);
-         this.unloadFar(pcx, pcz);
+         if (pcx != this.lastCx || pcz != this.lastCz || Config.VIEW_RADIUS != this.lastRadius) {
+            this.lastCx = pcx;
+            this.lastCz = pcz;
+            this.lastRadius = Config.VIEW_RADIUS;
+            this.ensureRadius(pcx, pcz);
+            this.unloadFar(pcx, pcz);
+         }
+         this.carveOffer = chunkKey(pcx, pcz);
          Frustum live = Frustum.getFrustum();
          int n = 0;
          n = this.offerDirty(pcx, pcz, n, true);

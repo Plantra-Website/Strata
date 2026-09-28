@@ -43,7 +43,7 @@ public class CubeBlock extends Block {
 
    private static boolean showsFace(BlockView level, int x, int y, int z) {
       int id = level.getTile(x, y, z);
-      return id <= 0 || !Blocks.isSolid(id) || id == Blocks.LEAF_ID;
+      return id <= 0 || !Blocks.isSolid(id) || (Config.FANCY_LEAVES && id == Blocks.LEAF_ID);
    }
 
    private static int hash(int x, int y, int z, int face) {

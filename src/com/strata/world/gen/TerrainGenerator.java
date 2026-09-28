@@ -211,6 +211,10 @@ public class TerrainGenerator {
       return this.carver.isCarved(x, y, z);
    }
 
+   public void touchCarve(int ccx, int ccz) {
+      this.carver.isCarved(ccx * 16 + 8, 32, ccz * 16 + 8);
+   }
+
    private int oreAt(int x, int y, int z) {
       if (y <= 30 && this.oreNoise.noise3(x / 14.0, y / 14.0, z / 14.0) > 0.45) {
          return Blocks.COAL_ID;

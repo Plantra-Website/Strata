@@ -12,6 +12,10 @@ public final class Config {
 
    public static boolean BLOCK_ROTATION = false;
 
+   public static boolean FANCY_LEAVES = false;
+
+   public static boolean LEAF_BLACKOUT = true;
+
    public static final long SLOW_MESH_MS = 150L;
    public static final long SLOW_UPLOAD_MS = 25L;
    public static final long SLOW_SETTILE_MS = 25L;

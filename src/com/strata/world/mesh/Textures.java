@@ -42,6 +42,16 @@ public class Textures {
       return id;
    }
 
+   public static int loadImage(String key, BufferedImage img, int mode) {
+      Integer cached = idMap.get(key);
+      if (cached != null) {
+         return cached;
+      }
+      int id = upload(img, mode);
+      idMap.put(key, id);
+      return id;
+   }
+
    private static int upload(BufferedImage img, int mode) {
       IntBuffer ib = BufferUtils.createIntBuffer(1);
       GL11.glGenTextures(ib);

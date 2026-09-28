@@ -484,7 +484,7 @@ public class GameClient implements Runnable {
       java.util.Collections.shuffle(embers);
       int lit = 0;
       for (int i = 0; i < embers.size() && lit < 2; i++) {
-         if (Math.random() > 0.5) {
+         if (Math.random() > 0.2) {
             continue;
          }
          int[] e = embers.get(i);

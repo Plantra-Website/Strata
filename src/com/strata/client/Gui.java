@@ -20,7 +20,7 @@ public class Gui {
    private int lastLoggedS = -1;
 
    public static int autoScale(int screenW, int screenH) {
-      for (int s = 3; s >= 1; s--) {
+      for (int s = 5; s >= 1; s--) {
          if (screenW / s >= 320 && screenH / s >= 240) {
             return s;
          }
@@ -84,10 +84,18 @@ public class Gui {
 
    static final int BAR_PITCH = 20;
    static final int BAR_WELL = 3;
+   static final int SEL_TX = 1;
+   static final int SEL_TY = 23;
+   static final int SEL_S = 22;
+   static final float BAR_SCALE = 1.1F;
 
    private void renderHotbar(Inventory inventory, int selectedSlot, int hp, boolean spectator) {      int totalSlots = 9;
-      int barWidth = 182;
-      int barHeight = 22;
+      float bs = Math.min(BAR_SCALE, this.width / 182.0F);
+      int barWidth = Math.round(182 * bs);
+      int barHeight = Math.round(22 * bs);
+      int cell = Math.round(16 * bs);
+      int selS = Math.round(SEL_S * bs);
+      int pad = (cell - 16) / 2;
       int xStart = (this.width - barWidth) / 2;
       int yStart = this.height - barHeight - 8;
 
@@ -100,9 +108,9 @@ public class Gui {
       t.init();
       this.widgetQuad(t, xStart, yStart, barWidth, barHeight, 0, 0, 182, 22);
       if (selectedSlot >= 0 && selectedSlot < totalSlots) {
-         int hx = xStart + selectedSlot * BAR_PITCH;
-         int hy = yStart - 1;
-         this.widgetQuad(t, hx, hy, 24, 24, 0, 22, 24, 24);
+         int hx = xStart + Math.round((BAR_WELL + selectedSlot * BAR_PITCH) * bs) - (selS - cell) / 2;
+         int hy = yStart + Math.round(BAR_WELL * bs) - (selS - cell) / 2;
+         this.widgetQuad(t, hx, hy, selS, selS, SEL_TX, SEL_TY, SEL_S, SEL_S);
       }
       t.flush();
 
@@ -119,7 +127,8 @@ public class Gui {
           if (id <= 0 || count <= 0) {
              continue;
           }
-          this.renderItemIcon(xStart + BAR_WELL + i * BAR_PITCH, yStart + BAR_WELL, id);
+          this.renderItemIcon(xStart + Math.round((BAR_WELL + i * BAR_PITCH) * bs) + pad,
+             yStart + Math.round(BAR_WELL * bs) + pad, id);
        }
        t.flush();
 
@@ -133,18 +142,22 @@ public class Gui {
           if (inventory.slots[i].blockId <= 0 || count <= 0) {
              continue;
           }
-          this.drawCount(t, xStart + BAR_WELL + i * BAR_PITCH, yStart + BAR_WELL, count);
+          this.drawCount(t, xStart + Math.round((BAR_WELL + i * BAR_PITCH) * bs),
+             yStart + Math.round(BAR_WELL * bs), count, bs);
        }
        t.flush();
        GL11.glDisable(GL11.GL_TEXTURE_2D);
        GL11.glDisable(GL11.GL_BLEND);
-       this.renderHearts(hp, spectator, xStart, yStart);
+       this.renderHearts(hp, spectator, xStart, yStart, bs);
    }
 
-   private void renderHearts(int hp, boolean spectator, int xStart, int yStart) {
+   private void renderHearts(int hp, boolean spectator, int xStart, int yStart, float bs) {
       if (spectator) {
          return;
       }
+      int pitch = Math.round(8 * bs);
+      int size = (int)(9 * bs);
+      int half = (int)(5 * bs);
       Tesselator t = Tesselator.SHARED;
       Textures.bind(Textures.loadTexture("/textures/gui/icons.png", 9728));
       GL11.glEnable(GL11.GL_TEXTURE_2D);
@@ -152,14 +165,14 @@ public class Gui {
       GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
       t.init();
       for (int i = 0; i < 10; i++) {
-         int hx = xStart + i * 8;
-         int hy = yStart - 10;
-         this.widgetQuad(t, hx, hy, 9, 9, 16, 0, 9, 9);
+         int hx = xStart + i * pitch;
+         int hy = yStart - Math.round(10 * bs);
+         this.widgetQuad(t, hx, hy, size, size, 16, 0, 9, 9);
          if (hp >= i * 2 + 2) {
-            this.widgetQuad(t, hx, hy, 9, 9, 52, 0, 9, 9);
+            this.widgetQuad(t, hx, hy, size, size, 52, 0, 9, 9);
          } else if (hp == i * 2 + 1) {
-            this.widgetQuad(t, hx, hy, 5, 9, 16, 0, 5, 9);
-            this.widgetQuad(t, hx, hy, 9, 9, 61, 0, 9, 9);
+            this.widgetQuad(t, hx, hy, half, size, 16, 0, 5, 9);
+            this.widgetQuad(t, hx, hy, size, size, 61, 0, 9, 9);
          }
       }
       t.flush();
@@ -295,7 +308,7 @@ public class Gui {
    private void isoVert(Tesselator t, float u, float v, int x, int y, float bx, float by, float bz, int s) {
       float[] p = isoProj(bx, by, bz);
       t.tex(u, v);
-      t.vertex((x + 8 + 10F * p[0]) * s, (y + 8.72F + 10F * p[1]) * s, 0.0F);
+      t.vertex((x + 8F + 10F * p[0]) * s, (y + 8.72F + 10F * p[1]) * s, 0.0F);
    }
 
    private void renderItemIcon(int x, int y, int blockId) {
@@ -337,6 +350,10 @@ public class Gui {
    }
 
    private void drawGlyph(Tesselator t, int x, int y, char ch, int col) {
+      this.drawGlyph(t, x, y, ch, col, 8, 1);
+   }
+
+   private void drawGlyph(Tesselator t, int x, int y, char ch, int col, int glyphPx, int shadowPx) {
       float a = (col >> 24 & 0xFF) / 255.0F;
       float r = (col >> 16 & 0xFF) / 255.0F;
       float g = (col >> 8 & 0xFF) / 255.0F;
@@ -351,27 +368,34 @@ public class Gui {
       t.tex(u0, v0);
       t.vertex(x * s, y * s, 0.0F);
       t.tex(u0, v1);
-      t.vertex(x * s, (y + 8) * s, 0.0F);
+      t.vertex(x * s, (y + glyphPx) * s, 0.0F);
       t.tex(u1, v1);
-      t.vertex((x + 8) * s, (y + 8) * s, 0.0F);
+      t.vertex((x + glyphPx) * s, (y + glyphPx) * s, 0.0F);
       t.tex(u1, v0);
-      t.vertex((x + 8) * s, y * s, 0.0F);
+      t.vertex((x + glyphPx) * s, y * s, 0.0F);
    }
 
    private void drawCount(Tesselator t, int x, int y, int count) {
+      this.drawCount(t, x, y, count, 1.0F);
+   }
+
+   private void drawCount(Tesselator t, int x, int y, int count, float bs) {
       if (count <= 1) {
          return;
       }
       String s = Integer.toString(count);
-      int sx = x + 17 - s.length() * 6;
-      int sy = y + 9;
+      int adv = Math.round(6 * bs);
+      int glyph = Math.round(8 * bs);
+      int shadow = Math.max(1, Math.round(bs));
+      int sx = x + Math.round(17 * bs) - s.length() * adv;
+      int sy = y + Math.round(9 * bs);
       for (int i = 0; i < s.length(); i++) {
          char ch = s.charAt(i);
          if (ch < '0' || ch > '9') {
             continue;
          }
-         this.drawGlyph(t, sx + i * 6 + 1, sy + 1, ch, 0xFF3f3f3f);
-         this.drawGlyph(t, sx + i * 6, sy, ch, 0xFFFFFFFF);
+         this.drawGlyph(t, sx + i * adv + shadow, sy + shadow, ch, 0xFF3f3f3f, glyph, shadow);
+         this.drawGlyph(t, sx + i * adv, sy, ch, 0xFFFFFFFF, glyph, shadow);
       }
    }
 

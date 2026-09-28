@@ -67,16 +67,20 @@ public class Chunk {
       }
    };
 
-    public MeshData mesh() {
+     public MeshData mesh() {
        Profiler.push("mesh");
        long t0 = System.nanoTime();
        try {
           this.level.reconcileSkyChunk(Math.floorDiv(this.x0, 16), Math.floorDiv(this.z0, 16));
+          long t1 = System.nanoTime();
           MeshData m = this.meshInner();
-          long ms = (System.nanoTime() - t0) / 1000000L;
+          long t2 = System.nanoTime();
+          long ms = (t2 - t0) / 1000000L;
           Debug.slow("mesh", ms, Config.SLOW_MESH_MS,
              "chunk " + this.x0 / 16 + "," + this.z0 / 16
-             + " verts=" + (m.counts[0] + m.counts[1]));
+             + " verts=" + (m.counts[0] + m.counts[1])
+             + " reconcile=" + (t1 - t0) / 1000000L + "ms"
+             + " inner=" + (t2 - t1) / 1000000L + "ms");
           return m;
        } finally {
           Profiler.pop();

@@ -48,14 +48,16 @@ public class EventParticleTest {
       }
       check(up.y > 40.0F, "negative gravity rises (y=" + up.y + ")");
 
-      float[] fuv = Particle.spriteUV(ParticleEngine.FLAME_SPRITE);
-      check(Math.abs(fuv[0] - 0.0F) < 1e-6F && Math.abs(fuv[1] - 24.0F / 128.0F) < 1e-6F
-         && Math.abs(fuv[2] - 8.0F / 128.0F) < 1e-6F && Math.abs(fuv[3] - 32.0F / 128.0F) < 1e-6F,
-         "flame UV = cell (0,3)");
-      float[] buv = Particle.spriteUV(ParticleEngine.BUBBLE_SPRITE);
-      check(Math.abs(buv[0] - 8.0F / 128.0F) < 1e-6F && Math.abs(buv[1] - 24.0F / 128.0F) < 1e-6F
-         && Math.abs(buv[2] - 16.0F / 128.0F) < 1e-6F && Math.abs(buv[3] - 32.0F / 128.0F) < 1e-6F,
-         "bubble UV = cell (1,3)");
+      float[] fuv = ParticleAtlas.uv(ParticleEngine.FLAME_SPRITE);
+      int[] fr = ParticleAtlas.rectPx(ParticleEngine.FLAME_SPRITE);
+      check(fuv[0] == fr[0] / 256.0F && fuv[1] == fr[1] / 256.0F
+         && fuv[2] == (fr[0] + fr[2]) / 256.0F && fuv[3] == (fr[1] + fr[3]) / 256.0F,
+         "flame UV = packed flame rect");
+      float[] buv = ParticleAtlas.uv(ParticleEngine.BUBBLE_SPRITE);
+      int[] br = ParticleAtlas.rectPx(ParticleEngine.BUBBLE_SPRITE);
+      check(buv[0] == br[0] / 256.0F && buv[2] == (br[0] + br[2]) / 256.0F,
+         "bubble UV = packed bubble rect");
+      check(ParticleAtlas.indexOf("flame.png") == ParticleEngine.FLAME_SPRITE, "flame resolves by name");
       Particle flame = Particle.sprite(l, 0.5F, 40.0F, 0.5F, 0.0F, 0.02F, 0.0F, ParticleEngine.FLAME_SPRITE);
       check(flame.particleSheet, "sheet sprite flags the sheet batch");
 
@@ -63,13 +65,14 @@ public class EventParticleTest {
       smoke.smokeAnim = true;
       smoke.lifetime = 40;
       smoke.tick();
-      check(Math.abs(smoke.u0 - Particle.spriteUV(7)[0]) < 1e-6F, "smoke starts at cell 7");
+      float[] seven = ParticleAtlas.uv(ParticleAtlas.smokeIndex(7));
+      check(Math.abs(smoke.u0 - seven[0]) < 1e-6F, "smoke starts at smoke7");
       for (int i = 0; i < 20; i++) {
          smoke.tick();
       }
-      float[] mid = Particle.spriteUV(3);
+      float[] mid = ParticleAtlas.uv(ParticleAtlas.smokeIndex(3));
       check(Math.abs(smoke.u0 - mid[0]) < 1e-6F && Math.abs(smoke.v0 - mid[1]) < 1e-6F,
-         "smoke rewinds toward cell 0 (u=" + smoke.u0 + ")");
+         "smoke rewinds toward smoke0 (u=" + smoke.u0 + ")");
 
       ParticleEngine trailEngine = new ParticleEngine(l);
       trailEngine.addBubble(0.5F, 40.5F, 0.5F);
@@ -108,6 +111,25 @@ public class EventParticleTest {
          stoneEngine.tick();
       }
       check(stoneEngine.count() == 1, "stone touchdown persists (no lava to die on)");
+
+      int n = ParticleAtlas.SPRITES.length;
+      check(n == 10, "ten particle sprites");
+      for (int i = 0; i < n; i++) {
+         int[] r = ParticleAtlas.rectPx(i);
+         check(r[2] > 0 && r[3] > 0, "sprite " + i + " has area");
+         check(r[0] >= 0 && r[1] >= 0 && r[0] + r[2] <= 256 && r[1] + r[3] <= 256,
+            "sprite " + i + " inside the sheet");
+         for (int j = i + 1; j < n; j++) {
+            int[] q = ParticleAtlas.rectPx(j);
+            boolean overlap = r[0] < q[0] + q[2] && q[0] < r[0] + r[2]
+               && r[1] < q[1] + q[3] && q[1] < r[1] + r[3];
+            check(!overlap, "sprites " + i + " and " + j + " disjoint");
+         }
+      }
+      for (int f = 0; f < 7; f++) {
+         check(ParticleAtlas.smokeIndex(f + 1) == ParticleAtlas.smokeIndex(f) + 1,
+            "smoke frames contiguous");
+      }
 
       if (failures == 0) System.out.println("EVENTPART PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }

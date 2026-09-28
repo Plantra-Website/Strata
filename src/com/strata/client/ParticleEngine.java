@@ -30,9 +30,9 @@ public class ParticleEngine {
       return this.particles.get(i);
    }
 
-   public static final int FLAME_SPRITE = 48;
-   public static final int BUBBLE_SPRITE = 49;
-   public static final int SMOKE_SPRITE = 7;
+   public static final int FLAME_SPRITE = ParticleAtlas.indexOf("flame.png");
+   public static final int BUBBLE_SPRITE = ParticleAtlas.indexOf("lava.png");
+   public static final int SMOKE_SPRITE = ParticleAtlas.indexOf("generic_7.png");
 
    public void addEmber(float x, float y, float z) {
       Particle p = Particle.sprite(this.level, x, y, z, 0.0F, 0.0F, 0.0F, FLAME_SPRITE);
@@ -157,7 +157,7 @@ public class ParticleEngine {
       }
       t.flush();
 
-      Textures.bind(Textures.loadTexture("/textures/particles.png", 9728));
+      Textures.bind(ParticleAtlas.texture());
       GL11.glEnable(GL11.GL_ALPHA_TEST);
       GL11.glAlphaFunc(GL11.GL_GREATER, 0.5F);
       t.init();

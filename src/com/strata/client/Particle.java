@@ -37,7 +37,8 @@ public class Particle {
    }
 
    public static Particle sprite(Level level, float x, float y, float z, float xd, float yd, float zd, int sprite) {
-      return new Particle(level, x, y, z, xd, yd, zd, spriteUV(sprite), true);
+      float[] uv = ParticleAtlas.uv(sprite);
+      return new Particle(level, x, y, z, xd, yd, zd, new float[]{uv[0], uv[1], uv[2], uv[3]}, true);
    }
 
    private static float[] atlasUV(int texIndex) {
@@ -45,12 +46,6 @@ public class Particle {
       float du = (float)Math.random() * 0.6F * r[2];
       float dv = (float)Math.random() * 0.6F * r[3];
       return new float[]{r[0] + du, r[1] + dv, r[0] + du + 0.25F * r[2], r[1] + dv + 0.25F * r[3]};
-   }
-
-   static float[] spriteUV(int sprite) {
-      float u0 = (sprite % 16) * 8.0F / 128.0F;
-      float v0 = (sprite / 16) * 8.0F / 128.0F;
-      return new float[]{u0, v0, u0 + 8.0F / 128.0F, v0 + 8.0F / 128.0F};
    }
 
    public boolean particleSheet = false;
@@ -109,10 +104,7 @@ public class Particle {
 
       if (this.smokeAnim) {
          int f = 7 - this.age * 8 / Math.max(1, this.lifetime);
-         if (f < 0) {
-            f = 0;
-         }
-         float[] uv = spriteUV(f);
+         float[] uv = ParticleAtlas.uv(ParticleAtlas.smokeIndex(f));
          this.u0 = uv[0];
          this.v0 = uv[1];
          this.u1 = uv[2];

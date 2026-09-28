@@ -1,4 +1,5 @@
 package com.strata.blocks;
+import com.strata.core.Config;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import javax.imageio.ImageIO;
@@ -8,6 +9,23 @@ public class AtlasTest {
 
    static void check(boolean cond, String msg) {
       if (!cond) { failures++; System.out.println("FAIL: " + msg); }
+   }
+
+   static boolean blackedOut(String name) {
+      if (!Config.LEAF_BLACKOUT) {
+         return false;
+      }
+      int leafBase = Blocks.byId(Blocks.LEAF_ID).texture;
+      int s = AtlasStitcher.slot(name);
+      if (s == leafBase) {
+         return true;
+      }
+      for (int a : AtlasStitcher.altsFor(leafBase)) {
+         if (s == a) {
+            return true;
+         }
+      }
+      return false;
    }
 
    public static void main(String[] args) throws Exception {
@@ -57,6 +75,9 @@ public class AtlasTest {
                   int a = (px >>> 24) & 0xFF;
                   int v = px & 0xFF;
                   want = (a << 24) | (v * tint[0] / 255 << 16) | (v * tint[1] / 255 << 8) | (v * tint[2] / 255);
+               }
+               if (blackedOut(AtlasStitcher.TILES[t]) && ((px >>> 24) & 0xFF) < 128) {
+                  want = 0xFF000000;
                }
                if (atlas.getRGB(rect[0] + x, rect[1] + y) != want) {
                   same = false;

@@ -1,5 +1,6 @@
 package com.strata.blocks;
 
+import com.strata.core.Config;
 import com.strata.core.Log;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -196,6 +197,18 @@ public final class AtlasStitcher {
       }
       BufferedImage atlas = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
       ANIM.clear();
+      java.util.HashSet<Integer> blackTiles = new java.util.HashSet<Integer>();
+      if (Config.LEAF_BLACKOUT) {
+         String leafName = TILES[Blocks.byId(Blocks.LEAF_ID).texture];
+         String stem = leafName.substring(0, leafName.length() - 4);
+         blackTiles.add(names.indexOf(leafName));
+         for (int n = 1; n <= 9; n++) {
+            int s = names.indexOf(stem + n + ".png");
+            if (s >= 0) {
+               blackTiles.add(s);
+            }
+         }
+      }
       for (int k = 0; k < order.length; k++) {
          int t = order[k];
          java.util.ArrayList<BufferedImage> frames = allFrames.get(t);
@@ -203,6 +216,11 @@ public final class AtlasStitcher {
          if (tint != null) {
             for (BufferedImage f : frames) {
                tintImage(f, tint);
+            }
+         }
+         if (blackTiles.contains(t)) {
+            for (BufferedImage f : frames) {
+               blackout(f);
             }
          }
          BufferedImage tile = frames.get(0);
@@ -255,8 +273,7 @@ public final class AtlasStitcher {
       return f;
    }
 
-   private static void tintImage(BufferedImage img, int[] tint) {
-      int w = img.getWidth();
+   private static void tintImage(BufferedImage img, int[] tint) {      int w = img.getWidth();
       int h = img.getHeight();
       for (int x = 0; x < w; x++) {
          for (int y = 0; y < h; y++) {
@@ -264,6 +281,19 @@ public final class AtlasStitcher {
             int a = (px >>> 24) & 0xFF;
             int v = px & 0xFF; 
             img.setRGB(x, y, (a << 24) | (v * tint[0] / 255 << 16) | (v * tint[1] / 255 << 8) | (v * tint[2] / 255));
+         }
+      }
+   }
+
+   private static void blackout(BufferedImage img) {
+      int w = img.getWidth();
+      int h = img.getHeight();
+      for (int x = 0; x < w; x++) {
+         for (int y = 0; y < h; y++) {
+            int px = img.getRGB(x, y);
+            if (((px >>> 24) & 0xFF) < 128) {
+               img.setRGB(x, y, 0xFF000000);
+            }
          }
       }
    }

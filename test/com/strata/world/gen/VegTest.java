@@ -8,6 +8,7 @@ import com.strata.blocks.CrossBlock;
 import com.strata.blocks.CubeBlock;
 import com.strata.blocks.AtlasStitcher;
 import com.strata.blocks.MeshBuilder;
+import com.strata.core.Config;
 import java.awt.image.BufferedImage;
 
 public class VegTest {
@@ -56,7 +57,14 @@ public class VegTest {
       check(tileStats(img, sapT, false, false), "sapling green+cutout");
       check(tileStats(img, woodT, true, false) || brownPixels(img, woodT) > 100, "wood brown+opaque");
       check(transparentFraction(img, roseT) > 0.5, "rose mostly transparent");
-      check(transparentFraction(img, leafT) > 0.1, "leaves are cutout (fancy, not opaque)");
+      if (Config.LEAF_BLACKOUT) {
+         check(transparentFraction(img, leafT) == 0, "leaves blacked out (blackout experiment on)");
+         for (int a : AtlasStitcher.altsFor(leafT)) {
+            check(transparentFraction(img, a) == 0, "leaf alt blacked out too (mesh picks alts at random)");
+         }
+      } else {
+         check(transparentFraction(img, leafT) > 0.1, "leaves are cutout (fancy, not opaque)");
+      }
       check(transparentFraction(img, tuftT) > 0.25, "tuft partly transparent");
       check(redPixels(img, roseT) > 5, "rose has red bloom");
       check(greenPixels(img, tuftT) > 10, "tuft has green blades");
