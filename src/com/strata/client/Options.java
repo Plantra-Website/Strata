@@ -104,7 +104,7 @@ public class Options {
    public void save(File file) {
       try {
          PrintWriter out = new PrintWriter(new FileWriter(file));
-         out.println("# RubyDung options — key names like KEY_W, KEY_SPACE (LWJGL Keyboard).");
+         out.println("# Strata options — key names like KEY_W, KEY_SPACE (LWJGL Keyboard).");
          out.println("# Unknown names/values fall back to defaults; delete to regenerate.");
          out.println("keyFwd=" + Keyboard.getKeyName(this.keyFwd));
          out.println("keyBack=" + Keyboard.getKeyName(this.keyBack));

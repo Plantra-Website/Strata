@@ -125,7 +125,7 @@ public class DepTest {
                   byte[] bytes = new byte[len];
                   in.readFully(bytes);
                   String s = new String(bytes, "UTF-8");
-                  String pkg = extractRubydungPackage(s);
+                  String pkg = extractStrataPackage(s);
                   if (pkg != null) {
                      refs.add(pkg);
                   }
@@ -145,7 +145,7 @@ public class DepTest {
       return refs;
    }
 
-   static String extractRubydungPackage(String s) {
+   static String extractStrataPackage(String s) {
       String prefix = "com/strata/";
       int i = s.indexOf(prefix);
       if (i < 0) {

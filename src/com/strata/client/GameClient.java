@@ -271,7 +271,7 @@ public class GameClient implements Runnable {
       }
       String phase = DayCycle.STOP_NAMES[(int)(t * 4.0 / DAY_LENGTH + 0.5) % 4];
       return new String[]{
-         "RubyDung F3",
+         "Strata F3",
          "fps " + this.fps,
          String.format("xyz %.1f / %.1f / %.1f", this.player.x, this.player.y, this.player.z),
          phase + " t" + this.clientTime + " sub " + this.lastSub,
@@ -320,7 +320,7 @@ public class GameClient implements Runnable {
          this.init();
        } catch (Exception e) {
           Log.error("boot", "failed to start", e);
-          JOptionPane.showMessageDialog(null, e.toString(), "Failed to start RubyDung", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, e.toString(), "Failed to start Strata", JOptionPane.ERROR_MESSAGE);
           System.exit(1);
        }
 
