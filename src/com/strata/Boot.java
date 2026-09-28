@@ -34,13 +34,27 @@ public class Boot {
        return p;
     }
 
+   static String nativeLibName(String os, String arch) {
+      String o = os.toLowerCase(java.util.Locale.ROOT);
+      boolean mac = o.contains("mac") || o.contains("darwin");
+      boolean win = o.contains("win");
+      if (mac) {
+         return "liblwjgl.dylib";
+      }
+      if (win) {
+         return "lwjgl64.dll";
+      }
+      return "liblwjgl64.so";
+   }
+
    private static void preloadNatives() {
       try {
-         java.io.InputStream in = Boot.class.getResourceAsStream("/native/liblwjgl.dylib");
+         String lib = nativeLibName(System.getProperty("os.name", ""), System.getProperty("os.arch", ""));
+         java.io.InputStream in = Boot.class.getResourceAsStream("/native/" + lib);
          if (in != null) {
             java.io.File tmp = new java.io.File(System.getProperty("java.io.tmpdir"), "strata-natives");
             tmp.mkdirs();
-            java.io.File out = new java.io.File(tmp, "liblwjgl.dylib");
+            java.io.File out = new java.io.File(tmp, lib);
             java.nio.file.Files.copy(in, out.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             in.close();
             System.load(out.getAbsolutePath());

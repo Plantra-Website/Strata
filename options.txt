@@ -1,4 +1,4 @@
-# RubyDung options — key names like KEY_W, KEY_SPACE (LWJGL Keyboard).
+# Strata options — key names like KEY_W, KEY_SPACE (LWJGL Keyboard).
 # Unknown names/values fall back to defaults; delete to regenerate.
 keyFwd=W
 keyBack=S

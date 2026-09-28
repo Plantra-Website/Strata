@@ -107,25 +107,35 @@ case "${1:-build}" in
     "$JAVAC_BIN" -encoding UTF-8 -cp "$LIB" -d "$TMPDIR/stripcheck" $(find stripped/src stripped/test -name '*.java') || exit 1
     echo STRIP_OK ;;
   jar)
-    # Fat release jar: game classes + res + unpacked libs + mac-arm64
-    # natives (self-extracting at boot — see Boot.preloadNatives).
+    # Fat release jar per platform flavor: game classes + res + unpacked
+    # libs + that platform's natives/ (self-extracting at boot — see
+    # Boot.preloadNatives). Usage: ./build.sh jar [mac-arm64|mac-x64|
+    # windows-x64|linux-x64] (default: mac-arm64, this machine).
+    PLAT="${2:-mac-arm64}"
+    case "$PLAT" in
+      mac-arm64|mac-x64|windows-x64|linux-x64) ;;
+      *) echo "unknown platform '$PLAT' (mac-arm64|mac-x64|windows-x64|linux-x64)"; exit 1 ;;
+    esac
+    if [ ! -d "natives/$PLAT" ]; then
+      echo "no vendored natives for $PLAT"; exit 1
+    fi
     compile
     VER="$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/com/strata/core/Config.java)"
     JAR_BIN="${JDK_HOME:+$JDK_HOME/bin/}jar"
-    rm -rf dist/work "dist/Strata-$VER.jar"
+    rm -rf dist/work "dist/Strata-$VER-$PLAT.jar"
     mkdir -p dist/work
     cp -r out/. dist/work/
     for j in "$LIBDIR"/*.jar; do
       unzip -o -q "$j" -x 'META-INF/*' -d dist/work
     done
     mkdir -p dist/work/native
-    cp "$LIBDIR"/native/*.dylib dist/work/native/ 2>/dev/null || true
+    cp "natives/$PLAT/"* dist/work/native/
     find dist/work -name '.DS_Store' -delete
     rm -rf dist/work/__MACOSX
     mkdir -p dist/work/META-INF
     printf 'Manifest-Version: 1.0\nMain-Class: com.strata.Boot\n' > dist/work/META-INF/MANIFEST.MF
-    (cd dist/work && "$JAR_BIN" cfm "../Strata-$VER.jar" META-INF/MANIFEST.MF .)
+    (cd dist/work && "$JAR_BIN" cfm "../Strata-$VER-$PLAT.jar" META-INF/MANIFEST.MF .)
     rm -rf dist/work
-    ls -la "dist/Strata-$VER.jar" ;;
+    ls -la "dist/Strata-$VER-$PLAT.jar" ;;
   *) echo "usage: ./build.sh [build|run|test|strip|jar]"; exit 1 ;;
 esac
