@@ -164,7 +164,7 @@ public class GameClient implements Runnable {
       this.fogColor.put(new float[]{(col >> 16 & 0xFF) / 255.0F, (col >> 8 & 0xFF) / 255.0F, (col & 0xFF) / 255.0F, 1.0F});
       ((Buffer)this.fogColor).flip();
       Display.setDisplayMode(new DisplayMode(1024, 768));
-      Display.setTitle("Strata");
+      Display.setTitle("Strata " + Config.VERSION);
       Display.setResizable(true);
       Display.create();
       mark("display created");
@@ -258,7 +258,7 @@ public class GameClient implements Runnable {
    }
 
     private void updateTitle() {
-      Display.setTitle("Strata"
+      Display.setTitle("Strata " + Config.VERSION
          + (this.lastSpectator ? " [SPECTATOR]" : "")
          + (this.fullBright ? " [FULLBRIGHT]" : "")
          + (this.timer.timeScale != 1.0F ? " [" + this.timer.timeScale + "x]" : ""));
