@@ -12,6 +12,9 @@ through torch-lit midnight.
 ./build.sh test   # compile and run the headless suite
 ```
 
+Needs a JDK 17+ (`JAVA_HOME`, on `PATH`, or a standard Temurin-style
+install — the script finds it).
+
 ## Play (no build needed)
 
 Download your platform's jar from the Releases page and double-click it
@@ -24,9 +27,6 @@ Download your platform's jar from the Releases page and double-click it
 
 Needs a Java 17+ runtime, nothing else to install (natives ride inside
 each jar).
-
-Needs a JDK 17+ (`JAVA_HOME`, on `PATH`, or a standard Temurin-style
-install — the script finds it).
 
 ## Boot flags
 
