@@ -14,10 +14,16 @@ through torch-lit midnight.
 
 ## Play (no build needed)
 
-Download `Strata-0.0.0.0.jar` from the Releases page and double-click it
-(or `java -jar Strata-0.0.0.0.jar`). Needs a Java 17+ runtime and macOS on
-Apple Silicon (the bundled natives are arm64; Intel/Windows need theirs
-swapped into `lib/native` and a rebuild).
+Download your platform's jar from the Releases page and double-click it
+(or `java -jar <file>`):
+
+- `Strata-<version>-mac-arm64.jar` — Apple Silicon
+- `Strata-<version>-mac-x64.jar` — Intel Macs
+- `Strata-<version>-windows-x64.jar` — Windows 64-bit
+- `Strata-<version>-linux-x64.jar` — Linux 64-bit
+
+Needs a Java 17+ runtime, nothing else to install (natives ride inside
+each jar).
 
 Needs a JDK 17+ (`JAVA_HOME`, on `PATH`, or a standard Temurin-style
 install — the script finds it).
