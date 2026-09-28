@@ -1,6 +1,7 @@
 # Strata
 
-*Official pronunciation: /ˈstrɑːtɑː/*
+/ˈstrɑːtɑː/
+STRAH-tah
 
 A blocky voxel sandbox in Java (LWJGL2): dig, build, and survive from dawn
 through torch-lit midnight.
