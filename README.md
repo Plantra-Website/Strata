@@ -29,15 +29,12 @@ install — the script finds it).
 ## Controls
 
 Move/look: WASD + mouse · Jump: Space · Fly: `'` spectator, Space up /
-Shift down · Fullbright x-ray: `\` · Render distance: `[`/`]` (session
-only) · Dig: hold LMB (drops pop out, walk over to collect) · Place: RMB
-spends the selected slot (no free blocks — dig dirt to earn dirt) ·
-Hotbar: 1–9/wheel (iso icons + count digits, empty slots bare) ·
-Inventory: E (click to move stacks) · Save: Return (plus autosave every
-5 min) · Respawn: R · Debug kit: +/= key · Self-hurt: `/` (1 half-heart)
-· Time cycle: `;` (dawn → noon → dusk → midnight) · Tick rate: `,`/`.`
+Shift down · Fullbright x-ray: `\` · Render distance: `[`/`]` · Dig: hold LMB · Place: RMB ·
+Hotbar: 1–9/wheel ·
+Inventory: E · Save: Return · Respawn: R · Debug kit: +/= key · Self-hurt: `/` (1 half-heart)
+· Time cycle: `;` · Tick rate: `,`/`.`
 (0.125x–8x debug) · F3 overlay (fps/pos/time/mesh/hp) · Mouse release:
-ESC (click back in to grab) · Quit: Delete (Fn+⌫ on laptops).
+ESC · Quit: Delete (Fn+⌫ on laptops).
 
 You start with 8 torches (no recipe yet). All keys rebindable in
 `options.txt` (written on exit); view distance + sensitivity + gui scale
