@@ -5,6 +5,8 @@
 #   ./build.sh test   compile and run the headless suite (each test isolated)
 #   ./build.sh strip  regenerate stripped/ (comment-free duplicate of src+test,
 #                     comment-only lines dropped) and verify it still compiles
+#   ./build.sh jar    fat release jar into dist/ (classes + res + libs +
+#                     mac-arm64 natives, self-extracting — double-clickable)
 set -e
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
@@ -104,5 +106,26 @@ case "${1:-build}" in
     # shellcheck disable=SC2046
     "$JAVAC_BIN" -encoding UTF-8 -cp "$LIB" -d "$TMPDIR/stripcheck" $(find stripped/src stripped/test -name '*.java') || exit 1
     echo STRIP_OK ;;
-  *) echo "usage: ./build.sh [build|run|test|strip]"; exit 1 ;;
+  jar)
+    # Fat release jar: game classes + res + unpacked libs + mac-arm64
+    # natives (self-extracting at boot — see Boot.preloadNatives).
+    compile
+    VER="$(sed -n 's/.*VERSION = "\([^"]*\)".*/\1/p' src/com/strata/core/Config.java)"
+    JAR_BIN="${JDK_HOME:+$JDK_HOME/bin/}jar"
+    rm -rf dist/work "dist/Strata-$VER.jar"
+    mkdir -p dist/work
+    cp -r out/. dist/work/
+    for j in "$LIBDIR"/*.jar; do
+      unzip -o -q "$j" -x 'META-INF/*' -d dist/work
+    done
+    mkdir -p dist/work/native
+    cp "$LIBDIR"/native/*.dylib dist/work/native/ 2>/dev/null || true
+    find dist/work -name '.DS_Store' -delete
+    rm -rf dist/work/__MACOSX
+    mkdir -p dist/work/META-INF
+    printf 'Manifest-Version: 1.0\nMain-Class: com.strata.Boot\n' > dist/work/META-INF/MANIFEST.MF
+    (cd dist/work && "$JAR_BIN" cfm "../Strata-$VER.jar" META-INF/MANIFEST.MF .)
+    rm -rf dist/work
+    ls -la "dist/Strata-$VER.jar" ;;
+  *) echo "usage: ./build.sh [build|run|test|strip|jar]"; exit 1 ;;
 esac

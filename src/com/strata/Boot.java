@@ -35,6 +35,22 @@ public class Boot {
     }
 
    private static void preloadNatives() {
+      try {
+         java.io.InputStream in = Boot.class.getResourceAsStream("/native/liblwjgl.dylib");
+         if (in != null) {
+            java.io.File tmp = new java.io.File(System.getProperty("java.io.tmpdir"), "strata-natives");
+            tmp.mkdirs();
+            java.io.File out = new java.io.File(tmp, "liblwjgl.dylib");
+            java.nio.file.Files.copy(in, out.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            in.close();
+            System.load(out.getAbsolutePath());
+            System.setProperty("org.lwjgl.librarypath", tmp.getAbsolutePath());
+            Log.info("natives", "loaded bundled " + out.getAbsolutePath());
+            return;
+         }
+      } catch (Exception e) {
+         Log.warn("natives", "bundled extract failed, trying dirs: " + e.getMessage());
+      }
       String[] candidates = {
          System.getProperty("user.dir") + "/lib/native",
          System.getProperty("user.dir") + "/../lib/native",

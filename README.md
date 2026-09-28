@@ -9,6 +9,13 @@ through torch-lit midnight.
 ./build.sh test   # compile and run the headless suite
 ```
 
+## Play (no build needed)
+
+Download `Strata-0.0.0.0.jar` from the Releases page and double-click it
+(or `java -jar Strata-0.0.0.0.jar`). Needs a Java 17+ runtime and macOS on
+Apple Silicon (the bundled natives are arm64; Intel/Windows need theirs
+swapped into `lib/native` and a rebuild).
+
 Needs a JDK 17+ (`JAVA_HOME`, on `PATH`, or a standard Temurin-style
 install — the script finds it).
 
