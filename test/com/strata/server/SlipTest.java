@@ -66,7 +66,7 @@ public class SlipTest {
       step.fwd = true;
       step.yaw = 180.0F;
       float peakFeet = 0.0F;
-      for (int i = 0; i < 160; i++) {
+      for (int i = 0; i < 500; i++) {
          conn.sendToServer(step);
          s.tick();
          while (conn.pollClient() != null) {
