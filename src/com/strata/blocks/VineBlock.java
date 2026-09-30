@@ -32,7 +32,7 @@ public class VineBlock extends Block {
          float u1 = uv[2];
          float v0 = uv[1];
          float v1 = uv[3];
-         t.color(br, br, br);
+         lightColor(t, level, x, y, z, 1.0F);
          float y0 = y + 0.0F;
          float y1 = y + 1.0F;
          if (Blocks.isSolid(level.getTile(x, y, z - 1))) {

@@ -39,6 +39,7 @@ import com.strata.world.mesh.LevelRenderer;
 import com.strata.world.mesh.Raycaster;
 import com.strata.world.mesh.Textures;
 import com.strata.world.mesh.Chunk;
+import com.strata.world.mesh.ChunkShader;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
@@ -208,7 +209,10 @@ public class GameClient implements Runnable {
             Log.warn("pack", "missing " + zip.getPath() + ", built-ins stand in");
          }
       }
-      if (this.importImage != null) {
+       Thread stitchThread = new Thread(() -> AtlasStitcher.stitch(), "atlas-stitch");
+       stitchThread.setDaemon(true);
+       stitchThread.start();
+       if (this.importImage != null) {
          if (com.strata.world.WorldMeta.fileFor(this.worldDir).isFile()) {
             Log.error("boot", "--import needs a fresh world dir (world.dat exists in " + this.worldDir + ")");
             javax.swing.JOptionPane.showMessageDialog(null,
@@ -244,6 +248,18 @@ public class GameClient implements Runnable {
          this.player.teleport(spawn[0], spawn[1], spawn[2]);
          this.player.yRot = 0.0F;
          this.player.xRot = 30.0F;
+      }
+      {
+         int pcx = Math.floorDiv(MathHelper.floor(this.player.x), 16);
+         int pcz = Math.floorDiv(MathHelper.floor(this.player.z), 16);
+         int[][] corners = {{pcx, pcz}, {pcx - 1, pcz}, {pcx, pcz - 1}, {pcx - 1, pcz - 1}};
+         for (int[] c : corners) {
+            final int ccx = c[0];
+            final int ccz = c[1];
+            Thread t = new Thread(() -> this.level.warmCarves(ccx, ccz, ccx, ccz), "carve-boot");
+            t.setDaemon(true);
+            t.start();
+         }
       }
       this.levelRenderer = new LevelRenderer(this.level);
       mark("renderer built (spawn chunks meshed+uploaded)");
@@ -695,8 +711,7 @@ public class GameClient implements Runnable {
       if (sub != this.lastSub) {
          this.lastSub = sub;
          this.level.setSkylightSub(sub);
-         this.levelRenderer.markAllDirty();
-         Log.info("light", "skylight sub " + sub + " (day=" + String.format("%.2f", day) + "), remesh wave");
+         Log.info("light", "skylight sub " + sub + " (day=" + String.format("%.2f", day) + ")");
       }
       GL11.glClearColor(0.01F + (0.5F - 0.01F) * day, 0.02F + (0.8F - 0.02F) * day, 0.06F + (1.0F - 0.06F) * day, 0.0F);
       float fogR = 0.01F + (0.5F - 0.01F) * day;
@@ -715,9 +730,10 @@ public class GameClient implements Runnable {
       GL11.glFogf(GL11.GL_FOG_START, fogEnd * 0.25F);
       GL11.glFogf(GL11.GL_FOG_END, fogEnd);
       GL11.glFog(GL11.GL_FOG_COLOR, this.fogColor);
-      if (this.level.getTile(MathHelper.floor(this.player.x),
+      boolean murk = this.level.getTile(MathHelper.floor(this.player.x),
          MathHelper.floor(this.player.bb.y0 + 1.62F),
-         MathHelper.floor(this.player.z)) == Blocks.WATER_ID) {
+         MathHelper.floor(this.player.z)) == Blocks.WATER_ID;
+      if (murk) {
          GL11.glFogf(GL11.GL_FOG_START, 0.0F);
          GL11.glFogf(GL11.GL_FOG_END, 14.0F);
          ((Buffer)this.fogColor).clear();
@@ -730,6 +746,9 @@ public class GameClient implements Runnable {
       if (!this.fullBright) {
          GL11.glEnable(GL11.GL_FOG);
       }
+      ChunkShader.frame(sub,
+         murk ? 0.03F : fogR, murk ? 0.05F : fogG, murk ? 0.35F : fogB,
+         murk ? 0.0F : fogEnd * 0.25F, murk ? 14.0F : fogEnd, !this.fullBright);
       this.levelRenderer.render(this.player.x, this.player.z, this.fullBright, 0);
       this.levelRenderer.render(this.player.x, this.player.z, this.fullBright, 1);
       this.levelRenderer.render(this.player.x, this.player.z, this.fullBright, 2);

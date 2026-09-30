@@ -32,15 +32,15 @@ public class Textures {
       }
    }
 
-   public static int loadAtlas(int mode) {
-      Integer cached = idMap.get("/atlas");
-      if (cached != null) {
-         return cached;
-      }
-      int id = upload(AtlasStitcher.stitch(), mode);
-      idMap.put("/atlas", id);
-      return id;
-   }
+    public static int loadAtlas(int mode) {
+       Integer cached = idMap.get("/atlas");
+       if (cached != null) {
+          return cached;
+       }
+       int id = upload(AtlasStitcher.atlasImage(), mode);
+       idMap.put("/atlas", id);
+       return id;
+    }
 
    public static int loadImage(String key, BufferedImage img, int mode) {
       Integer cached = idMap.get(key);

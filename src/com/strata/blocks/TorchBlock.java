@@ -78,7 +78,7 @@ public class TorchBlock extends Block {
       float[] s = strip(this.texture);
       float su0 = s[0], su1 = s[1], sv0 = s[2], sv1 = s[3];
       float br = level.getBrightness(x, y, z);
-      t.color(br, br, br);
+      lightColor(t, level, x, y, z, 1.0F);
       int facing = state.data;
       if (facing >= 2 && facing <= 5) {
          float w = (POST_MAX - POST_MIN) / 2.0F;

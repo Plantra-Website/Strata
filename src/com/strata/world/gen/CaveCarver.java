@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class CaveCarver {
    private static final int REGION = 32;
-   private static final int REACH_CHUNKS = 10;
+   private static final int REACH_CHUNKS = 8;
    private final long seed;
    private final int depth;
    private final ConcurrentHashMap<Long, RegionCarves> regions = new ConcurrentHashMap<>();
@@ -196,47 +196,48 @@ public class CaveCarver {
          }
    }
 
-      void carveNode(double x, double y, double z, double radius, double vRadius) {
-         int depth = CaveCarver.this.depth;
-         int x0 = MathHelper.floor(x - radius) - 1;
-         int x1 = MathHelper.floor(x + radius) + 1;
-         int y0 = MathHelper.floor(y - vRadius) - 1;
-         int y1 = MathHelper.floor(y + vRadius) + 1;
-         int z0 = MathHelper.floor(z - radius) - 1;
-         int z1 = MathHelper.floor(z + radius) + 1;
-         if (y0 < 1) {
-            y0 = 1;
-         }
-         if (y1 > depth - 8) {
-            y1 = depth - 8;
-         }
-         for (int cx = x0; cx <= x1; cx++) {
-            int ccx = Math.floorDiv(cx, 16);
-            if (ccx < this.rx * REGION || ccx >= this.rx * REGION + REGION) {
-               continue;
-            }
-            double nx = (cx + 0.5 - x) / radius;
-            if (nx * nx >= 1.0) {
-               continue;
-            }
-            for (int cz = z0; cz <= z1; cz++) {
-               int ccz = Math.floorDiv(cz, 16);
-               if (ccz < this.rz * REGION || ccz >= this.rz * REGION + REGION) {
-                  continue;
-               }
-               double nz = (cz + 0.5 - z) / radius;
-               if (nx * nx + nz * nz >= 1.0) {
-                  continue;
-               }
-                for (int cy = y1; cy >= y0; cy--) {
+       void carveNode(double x, double y, double z, double radius, double vRadius) {
+          int depth = CaveCarver.this.depth;
+          int x0 = MathHelper.floor(x - radius);
+          int x1 = MathHelper.floor(x + radius);
+          int z0 = MathHelper.floor(z - radius);
+          int z1 = MathHelper.floor(z + radius);
+          for (int cx = x0; cx <= x1; cx++) {
+             int ccx = Math.floorDiv(cx, 16);
+             if (ccx < this.rx * REGION || ccx >= this.rx * REGION + REGION) {
+                continue;
+             }
+             double nx = (cx + 0.5 - x) / radius;
+             double nxx = nx * nx;
+             if (nxx >= 1.0) {
+                continue;
+             }
+             for (int cz = z0; cz <= z1; cz++) {
+                int ccz = Math.floorDiv(cz, 16);
+                if (ccz < this.rz * REGION || ccz >= this.rz * REGION + REGION) {
+                   continue;
+                }
+                double nz = (cz + 0.5 - z) / radius;
+                double horizontal = nxx + nz * nz;
+                if (horizontal >= 1.0) {
+                   continue;
+                }
+                double dyMax = vRadius * Math.sqrt(1.0 - horizontal);
+                int cy1 = (int)Math.min(depth - 8, Math.floor(y + dyMax));
+                int cy0 = (int)Math.max(1, Math.ceil(y - 0.7D * vRadius));
+                long bits = 0L;
+                for (int cy = cy1; cy >= cy0; cy--) {
                    double ny = (cy + 0.5 - y) / vRadius;
-                   if (ny > -0.7D && nx * nx + ny * ny + nz * nz < 1.0D) {
-                      this.masks.orBits(columnKey(cx, cz), 1L << cy);
+                   if (ny > -0.7D && nxx + ny * ny + nz * nz < 1.0D) {
+                      bits |= 1L << cy;
                    }
                 }
-            }
-         }
-      }
+                if (bits != 0L) {
+                   this.masks.orBits(columnKey(cx, cz), bits);
+                }
+             }
+          }
+       }
    }
 }
 

@@ -153,6 +153,30 @@ public class LightTest {
       check(deep >= 0 && deep <= lip, "deep interior no brighter than lip (" + deep + " vs " + lip + ")");
       System.out.println("reconcile ok");
 
+      w.opaque.clear();
+      SkyLightEngine sky5 = new SkyLightEngine(w);
+      for (int cx = -3; cx <= 20; cx++) {
+         for (int cz = -2; cz <= 2; cz++) {
+            for (int y = 0; y <= 10; y++) {
+               if (cx >= 0 && cx <= 5 && y >= 8 && y <= 9) {
+                  continue; 
+               }
+               if (cx < 0 && y > 0) {
+                  continue; 
+               }
+               w.opaque.add(StubWorld.key(cx, y, cz));
+            }
+         }
+      }
+      check(sky5.get(2, 8, 0) == 0, "virgin notch dark before reconcile");
+      check(sky5.get(-1, 8, 0) == 15, "open air beside notch full bright");
+      sky5.reconcileSkyChunk(0, 0);
+      int mouth = sky5.get(0, 8, 0);
+      check(mouth == 14, "notch mouth one below open air (got " + mouth + ")");
+      int notchDeep = sky5.get(5, 8, 0);
+      check(notchDeep > 0, "notch interior lit, not zero (got " + notchDeep + ")");
+      System.out.println("notch ok");
+
       if (failures > 0) { System.out.println(failures + " FAILURES"); System.exit(1); }
       System.out.println("LIGHT PASS");
    }

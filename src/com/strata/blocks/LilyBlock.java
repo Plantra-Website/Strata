@@ -33,7 +33,7 @@ public class LilyBlock extends Block {
          float u1 = uv[2];
          float v0 = uv[1];
          float v1 = uv[3];
-         t.color(br, br, br);
+         lightColor(t, level, x, y, z, 1.0F);
          float yy = y + LIFT;
          int h = x * 3129871 ^ z * 116129781 ^ y;
          h = h * h * 42317861 + h * 11;

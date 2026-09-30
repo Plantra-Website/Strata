@@ -9,5 +9,11 @@ public interface BlockView {
    default BlockState getBlockState(int x, int y, int z) {
       return BlockState.of(null);
    }
+   default int getSkyLevel(int x, int y, int z) {
+      return 15;
+   }
+   default int getBlockLevel(int x, int y, int z) {
+      return 0;
+   }
 }
 

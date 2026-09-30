@@ -121,15 +121,25 @@ public class LevelRenderer implements LevelListener {
           long last = Long.MIN_VALUE;
           while (true) {
              try {
-                long c = this.carveOffer;
-                if (c != last) {
-                   last = c;
-                   int pcx = (int)(c >> 32);
-                   int pcz = (int)(c & 0xFFFFFFFFL);
+                int warmed = 0;
+                for (Chunk c : this.meshQueue) {
+                   if (warmed >= 8) {
+                      break;
+                   }
+                   int ccx = Math.floorDiv(c.x0, CHUNK_SIZE);
+                   int ccz = Math.floorDiv(c.z0, CHUNK_SIZE);
+                   this.level.warmCarves(ccx, ccz, ccx, ccz);
+                   warmed++;
+                }
+                long co = this.carveOffer;
+                if (co != last) {
+                   last = co;
+                   int pcx = (int)(co >> 32);
+                   int pcz = (int)(co & 0xFFFFFFFFL);
                    int r = Config.VIEW_RADIUS + 1;
                    this.level.warmCarves(pcx - r, pcz - r, pcx + r, pcz + r);
                 }
-                Thread.sleep(500L);
+                Thread.sleep(warmed >= 8 ? 50L : 500L);
              } catch (InterruptedException e) {
                 return;
              }
@@ -172,13 +182,7 @@ public class LevelRenderer implements LevelListener {
       this.ensureRadius(pcx, pcz, Config.VIEW_RADIUS);
    }
 
-   public void markAllDirty() {
-      for (Chunk c : this.chunks.values()) {
-         c.setDirty();
-      }
-   }
-
-   private void ensureRadius(int pcx, int pcz, int radius) {
+    private void ensureRadius(int pcx, int pcz, int radius) {
       for (int cx = pcx - radius; cx <= pcx + radius; cx++) {
          for (int cz = pcz - radius; cz <= pcz + radius; cz++) {
             this.getOrCreate(cx, cz);
@@ -207,7 +211,14 @@ public class LevelRenderer implements LevelListener {
              c.meshState = 1;
              int dist = Math.abs(Math.floorDiv(c.x0, CHUNK_SIZE) - pcx)
                 + Math.abs(Math.floorDiv(c.z0, CHUNK_SIZE) - pcz);
-             c.queueDist = c.uploaded() ? dist - 1000 : dist;
+             boolean drawn = c.uploaded();
+             if (drawn && dist <= 3) {
+                c.queueDist = dist - 1000;   
+             } else if (!drawn) {
+                c.queueDist = dist;          
+             } else {
+                c.queueDist = dist + 1000;   
+             }
              c.queueSeq = this.meshSeq.getAndIncrement();
              this.meshQueue.offer(c);
           }
@@ -280,9 +291,9 @@ public class LevelRenderer implements LevelListener {
          this.carveOffer = chunkKey(pcx, pcz);
          Frustum live = Frustum.getFrustum();
          int n = 0;
-         n = this.offerDirty(pcx, pcz, n, true);
+         n = this.offerDirty(pcx, pcz, n, false);        
          if (n < Config.SUBMIT_BUDGET) {
-            n = this.offerDirty(pcx, pcz, n, false);
+            n = this.offerDirty(pcx, pcz, n, true);      
          }
          this.uploadReady();
          this.cachedFrustum = live;
@@ -297,6 +308,7 @@ public class LevelRenderer implements LevelListener {
       } else {
          GL11.glEnableClientState(GL11.GL_COLOR_ARRAY);
       }
+      ChunkShader.bind();
 
       int passed = 0;
       boolean water = layer == 2;
@@ -323,6 +335,7 @@ public class LevelRenderer implements LevelListener {
       if (water) {
          GL11.glDisable(GL11.GL_BLEND);
       }
+      ChunkShader.unbind();
       if (layer == 0) {
          this.renderedLastFrame = passed;
       } else {

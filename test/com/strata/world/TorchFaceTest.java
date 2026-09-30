@@ -32,15 +32,21 @@ public class TorchFaceTest {
         dark.init();
         Blocks.byId(Blocks.STONE_ID).render(dark, l, 1, bx, by, bz); 
         check(dark.count() == 4, "only top face (" + dark.count() + " verts)");
-        for (float f : dark.colors()) check(f == 0.0f, "unlit top face black");
+        float[] dc = dark.colors();
+        for (int i = 0; i < dark.count(); i++) {
+           checkF(dc[i * 3], 1.0f, "unlit top shade full");
+           check(dc[i * 3 + 1] == 0.0f, "unlit top no sky");
+           check(dc[i * 3 + 2] == 0.0f, "unlit top no block light");
+        }
         l.setTile(bx, by + 1, bz, Blocks.TORCH_ID);
         MeshBuilder lit = new MeshBuilder();
         lit.init();
         Blocks.byId(Blocks.STONE_ID).render(lit, l, 1, bx, by, bz);
         check(lit.count() == 4, "torch doesn't cull floor face");
         boolean bright = true;
-        for (float f : lit.colors()) if (f < 0.5f) bright = false;
-        check(bright, "torch-lit top face bright");
+        float[] lc = lit.colors();
+        for (int i = 0; i < lit.count(); i++) if (lc[i * 3 + 2] < 0.5f) bright = false;
+        check(bright, "torch-lit top face block channel bright");
 
         l.setTile(bx, by + 1, bz, Blocks.TORCH_ID);
         MeshBuilder torch = new MeshBuilder();

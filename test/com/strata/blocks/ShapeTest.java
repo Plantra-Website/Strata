@@ -9,6 +9,7 @@ public class ShapeTest {
 
    static class Bright implements BlockView {
       final java.util.HashMap<Long, Integer> tiles = new java.util.HashMap<>();
+      final java.util.HashMap<Long, Integer> datas = new java.util.HashMap<>();
 
       static long key(int x, int y, int z) {
          return ((long)x << 42) | ((long)(z & 0x3FFFFF) << 21) | (y & 0x1FFFFF);
@@ -16,6 +17,11 @@ public class ShapeTest {
 
       void set(int x, int y, int z, int id) {
          tiles.put(key(x, y, z), id);
+      }
+
+      void set(int x, int y, int z, int id, int data) {
+         tiles.put(key(x, y, z), id);
+         datas.put(key(x, y, z), data);
       }
 
       @Override public boolean isSolidTile(int x, int y, int z) {
@@ -29,6 +35,14 @@ public class ShapeTest {
       @Override public int getTile(int x, int y, int z) {
          Integer t = tiles.get(key(x, y, z));
          return t == null ? 0 : t;
+      }
+
+      @Override public BlockState getBlockState(int x, int y, int z) {
+         Integer t = tiles.get(key(x, y, z));
+         if (t == null) {
+            return BlockState.of(null);
+         }
+         return Blocks.stateOf(Blocks.byId(t), datas.getOrDefault(key(x, y, z), 0));
       }
    }
 
@@ -141,6 +155,52 @@ public class ShapeTest {
          com.strata.core.AABB pick = Blocks.byId(Blocks.REED_ID).pickBox(0, 10, 0);
          check(Math.abs(pick.y1 - 11.0F) < 0.01F, "reed pick full height");
          check(Math.abs(pick.x0 - 0.125F) < 0.01F, "reed pick 12/16 wide");
+      }
+      check(Math.abs(CubeBlock.sliceV(0.0F, 1.0F, 1.0F) - 0.0F) < 1e-6F, "slice full height");
+      check(Math.abs(CubeBlock.sliceV(0.0F, 1.0F, 0.0F) - 1.0F) < 1e-6F, "slice zero height");
+      check(Math.abs(CubeBlock.sliceV(0.0F, 1.0F, 0.5F) - 0.5F) < 1e-6F, "slice half height");
+      check(Math.abs(CubeBlock.sliceV(0.2F, 0.9F, 2.0F) - 0.2F) < 1e-6F, "slice clamps high");
+      check(Math.abs(CubeBlock.sliceV(0.2F, 0.9F, -1.0F) - 0.9F) < 1e-6F, "slice clamps low");
+      {
+         Bright v = new Bright();
+         for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+               v.set(dx, 10, dz, Blocks.WATER_ID, 7);
+            }
+         }
+         MeshBuilder b = new MeshBuilder();
+         b.init();
+         Blocks.byId(Blocks.WATER_ID).render(b, v, 2, 1, 10, 0,
+            Blocks.stateOf(Blocks.byId(Blocks.WATER_ID), 7));
+         check(b.count() > 0, "low water emits sides");
+         float[] uv = AtlasStitcher.uv(Blocks.byId(Blocks.WATER_ID).texture);
+         float expect = CubeBlock.sliceV(uv[1], uv[3], 1.0F / 9.0F);
+         boolean sliced = false;
+         float[] tc = b.texCoords();
+         for (int i = 1; i < tc.length; i += 2) {
+            if (Math.abs(tc[i] - expect) < 1e-4F) {
+               sliced = true;
+            }
+         }
+         check(sliced, "side tops carry the height slice");
+      }
+      {
+         Bright v = new Bright();
+         v.set(0, 10, 0, Blocks.SNOW_LAYER_ID);
+         MeshBuilder b = new MeshBuilder();
+         b.init();
+         Blocks.byId(Blocks.SNOW_LAYER_ID).render(b, v, 0, 0, 10, 0,
+            Blocks.stateOf(Blocks.byId(Blocks.SNOW_LAYER_ID), 3));
+         float[] uv = AtlasStitcher.uv(Blocks.byId(Blocks.SNOW_LAYER_ID).texture);
+         float expect = CubeBlock.sliceV(uv[1], uv[3], 0.5F);
+         boolean sliced = false;
+         float[] tc = b.texCoords();
+         for (int i = 1; i < tc.length; i += 2) {
+            if (Math.abs(tc[i] - expect) < 1e-4F) {
+               sliced = true;
+            }
+         }
+         check(sliced, "snow strip tops carry the half slice");
       }
 
       if (failures == 0) System.out.println("SHAPE PASS");

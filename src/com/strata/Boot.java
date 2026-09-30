@@ -85,6 +85,9 @@ public class Boot {
             try {
                System.load(f.getAbsolutePath());
                 Log.info("natives", "loaded " + f.getAbsolutePath());
+               if (System.getProperty("org.lwjgl.librarypath") == null) {
+                  System.setProperty("org.lwjgl.librarypath", dir);
+               }
                loaded.add(lib);
                anyLoaded = true;
             } catch (UnsatisfiedLinkError e) {

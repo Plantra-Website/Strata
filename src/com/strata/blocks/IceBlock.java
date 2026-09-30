@@ -32,7 +32,7 @@ public class IceBlock extends CubeBlock {
       }
       float br = level.getBrightness(nx, ny, nz) * shade;
       float[] uv = AtlasStitcher.uv(variantTile(this.sideTexture, nx, ny, nz, face));
-      t.color(br, br, br);
+      lightColor(t, level, nx, ny, nz, shade);
       t.quad(ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz,
          uv[0], uv[1], uv[2], uv[1], uv[2], uv[3], uv[0], uv[3]);
    }

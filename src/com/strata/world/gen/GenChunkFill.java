@@ -14,7 +14,7 @@ public class GenChunkFill {
    private final VanillaOctaves gen5;
    private final VanillaOctaves gen6;
    private final GenLayer coarseHead;
-   private final GenLayer voronoiHead;
+   private final TerrainGenerator terrain;
    private final ThreadLocal<Random> rand = new ThreadLocal<Random>() {
       @Override protected Random initialValue() {
          return new Random();
@@ -34,7 +34,7 @@ public class GenChunkFill {
 
    public GenChunkFill(long seed, int depth, VanillaOctaves gen1, VanillaOctaves gen2,
          VanillaOctaves gen3, VanillaOctaves gen4, VanillaOctaves gen5, VanillaOctaves gen6,
-         GenLayer coarseHead, GenLayer voronoiHead) {
+         GenLayer coarseHead, TerrainGenerator terrain) {
       this.seed = seed;
       this.depth = depth;
       this.gen1 = gen1;
@@ -44,7 +44,7 @@ public class GenChunkFill {
       this.gen5 = gen5;
       this.gen6 = gen6;
       this.coarseHead = coarseHead;
-      this.voronoiHead = voronoiHead;
+      this.terrain = terrain;
    }
 
    public int evictFar(int pcx, int pcz, int keepChunks) {
@@ -226,6 +226,23 @@ public class GenChunkFill {
          int bx1 = floorCell(px + rxz / 2.0D);
          int by1 = floorCell(py + ry / 2.0D);
          int bz1 = floorCell(pz + rxz / 2.0D);
+         int cxMin = ccx * 16;
+         int czMin = ccz * 16;
+         if (bx1 < cxMin || bx0 > cxMin + 15 || bz1 < czMin || bz0 > czMin + 15) {
+            continue;
+         }
+         if (bx0 < cxMin) {
+            bx0 = cxMin;
+         }
+         if (bx1 > cxMin + 15) {
+            bx1 = cxMin + 15;
+         }
+         if (bz0 < czMin) {
+            bz0 = czMin;
+         }
+         if (bz1 > czMin + 15) {
+            bz1 = czMin + 15;
+         }
          for (int bx = bx0; bx <= bx1; bx++) {
             double qx = (bx + 0.5D - px) / (rxz / 2.0D);
             if (qx * qx >= 1.0D) {
@@ -269,7 +286,7 @@ public class GenChunkFill {
        rand.setSeed((long)ccx * 341873128712L + (long)ccz * 132897987541L);
        double[] stoneNoise = this.gen4.generate(null, ccx * 16, 0, ccz * 16, 16, 1, 16,
           1.0D / 16.0D, 1.0D / 16.0D, 1.0D / 16.0D);
-       int[] biomes = this.voronoiHead.generate(ccx * 16, ccz * 16, 16, 16);
+       int[] biomes = this.terrain.biomeGrid(ccx, ccz);
        for (int z = 0; z < 16; z++) {
           for (int x = 0; x < 16; x++) {
              int biome = biomes[x + z * 16];

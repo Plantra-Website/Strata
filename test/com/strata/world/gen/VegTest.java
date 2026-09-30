@@ -346,19 +346,25 @@ public class VegTest {
       check(giantStem > 0, "giant mushrooms fruit (stems)");
       check(giantCap > 0, "giant mushrooms fruit (caps)");
       check(shoreClay > 0, "clay discs punch shore sand (got " + shoreClay + ")");
-      int spruceNear = 0;
+      int spruceNear = 0, spruceLeaf = 0;
       for (int x = 240; x <= 304; x++) {
          for (int z = -32; z <= 32; z++) {
             int h = g.heightAt(x, z);
             for (int y = h + 1; y <= h + 12 && y < 128; y++) {
-               if (g.blockAt(x, y, z, h) == Blocks.SPRUCE_LOG_ID) {
+               int id = g.blockAt(x, y, z, h);
+               if (id == Blocks.SPRUCE_LOG_ID) {
                   spruceNear++;
+               } else if (id == Blocks.SPRUCE_LEAVES_ID) {
+                  spruceLeaf++;
+                  check(y > h, "taiga canopy above surface");
+                  check(canopyHosted(g, x, y, z), "taiga canopy hosted @" + x + "," + y + "," + z);
                }
             }
          }
       }
-      System.out.println("spruceNearTaiga=" + spruceNear);
+      System.out.println("spruceNearTaiga=" + spruceNear + " spruceLeafTaiga=" + spruceLeaf);
       check(spruceNear > 0, "spruce exists (taiga window)");
+      check(spruceLeaf > spruceNear, "taiga canopies outfit trunks");
       check(TerrainGenerator.logForSpecies(TerrainGenerator.BIRCH) == Blocks.BIRCH_LOG_ID, "birch log maps");
       check(TerrainGenerator.leavesForSpecies(TerrainGenerator.SPRUCE_TALL) == Blocks.SPRUCE_LEAVES_ID, "spruce leaves map");
       check(g.treeTrunkHeight(0, 0) == g.treeTrunkHeight(0, 0), "trunk memo stable");
@@ -385,9 +391,10 @@ public class VegTest {
             int top = g.heightAt(ox, oz) + th;
             boolean leaf;
             if (cone) {
-               leaf = TreeShapes.spruce(x - ox, y - top, z - oz);
+               leaf = TreeShapes.spruce(x - ox, y - top, z - oz, th,
+                  species == TerrainGenerator.SPRUCE_TALL, x, z);
             } else if (species == TerrainGenerator.SWAMP_OAK) {
-               leaf = TreeShapes.swamp(x - ox, y - top, z - oz);
+               leaf = TreeShapes.swamp(x - ox, y - top, z - oz, x, z);
             } else {
                leaf = TreeShapes.round(x - ox, y - top, z - oz, x, z);
             }

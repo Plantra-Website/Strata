@@ -49,19 +49,20 @@ public class SnowBlock extends Block {
          float u1 = uv[2];
          float v0 = uv[1];
          float v1 = uv[3];
-         t.color(br, br, br);
+         lightColor(t, level, x, y, z, 1.0F);
          float y0 = y + 0.0F;
          float y1 = y + UNIT * (1 + (state.data & 7));
+         float vSliceTop = CubeBlock.sliceV(v0, v1, (y1 - y0));
          t.quad(x, y1, z, x, y1, z + 1.0F, x + 1.0F, y1, z + 1.0F, x + 1.0F, y1, z,
             u0, v1, u0, v0, u1, v0, u1, v1);
          t.quad(x, y0, z, x, y1, z, x + 1.0F, y1, z, x + 1.0F, y0, z,
-            u0, v1, u0, v0, u1, v0, u1, v1);
+            u0, v1, u0, vSliceTop, u1, vSliceTop, u1, v1);
          t.quad(x, y0, z + 1.0F, x + 1.0F, y0, z + 1.0F, x + 1.0F, y1, z + 1.0F, x, y1, z + 1.0F,
-            u0, v1, u1, v1, u1, v0, u0, v0);
+            u0, v1, u1, v1, u1, vSliceTop, u0, vSliceTop);
          t.quad(x, y0, z, x, y0, z + 1.0F, x, y1, z + 1.0F, x, y1, z,
-            u0, v1, u0, v0, u1, v0, u1, v1);
+            u0, v1, u0, vSliceTop, u1, vSliceTop, u1, v1);
          t.quad(x + 1.0F, y0, z, x + 1.0F, y1, z, x + 1.0F, y1, z + 1.0F, x + 1.0F, y0, z + 1.0F,
-            u0, v1, u0, v0, u1, v0, u1, v1);
+            u0, v1, u0, vSliceTop, u1, vSliceTop, u1, v1);
       }
    }
 }

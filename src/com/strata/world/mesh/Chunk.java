@@ -35,8 +35,9 @@ public class Chunk {
    public final Level level;
    public final int x0;
    public final int z0;
-    public volatile boolean dirty = true;
-    volatile int meshState = 0; 
+   public volatile boolean dirty = true;
+   volatile int meshState = 0; 
+   volatile boolean built = false;
     volatile MeshData pending = null;
     volatile int dirtyVersion = 0;
     volatile int queueDist = Integer.MAX_VALUE;
@@ -74,10 +75,15 @@ public class Chunk {
      public MeshData mesh() {
        Profiler.push("mesh");
        long t0 = System.nanoTime();
-       try {
-          this.level.reconcileSkyChunk(Math.floorDiv(this.x0, 16), Math.floorDiv(this.z0, 16));
+      try {
+          ChunkView view = new ChunkView(this.level,
+             Math.floorDiv(this.x0, 16), Math.floorDiv(this.z0, 16));
+          if (!this.built) {
+             this.level.reconcileSkyChunk(Math.floorDiv(this.x0, 16), Math.floorDiv(this.z0, 16), view);
+          }
           long t1 = System.nanoTime();
-          MeshData m = this.meshInner();
+          MeshData m = this.meshInner(view);
+         this.built = true;
           long t2 = System.nanoTime();
           long ms = (t2 - t0) / 1000000L;
           Debug.slow("mesh", ms, Config.SLOW_MESH_MS,
@@ -91,32 +97,42 @@ public class Chunk {
        }
     }
 
-    private MeshData meshInner() {
-      MeshData m = new MeshData(this.dirtyVersion, this.level.depth);
-      MeshBuilder[] builders = BUILDERS.get();
-      for (int layer = 0; layer < 3; layer++) {
-         MeshBuilder b = builders[layer];
-         b.init();
-         for (int x = this.x0; x < this.x0 + 16; x++) {
-            for (int y = 0; y < this.level.depth; y++) {
-                for (int z = this.z0; z < this.z0 + 16; z++) {
-                   int tileId = this.level.getTile(x, y, z);
-                   Block block = tileId > 0 ? Blocks.byId(tileId) : null;
-                   if (block != null) {
-                       if (layer == 2 && tileId != Blocks.WATER_ID) {
-                          continue;
-                       }
-                       if (block.light > 0 && this.level.getBlockLevel(x, y, z) < block.light) {
-                          this.level.floodAdd(x, y, z, block.light);
-                       }
-                      int data = this.level.getData(x, y, z);
-                      BlockState state = data == 0 ? block.state : Blocks.stateOf(block, data);
-                      block.render(b, this.level, layer, x, y, z, state);
-                   }
+     private MeshData meshInner(ChunkView view) {
+       MeshData m = new MeshData(this.dirtyVersion, this.level.depth);
+       MeshBuilder[] builders = BUILDERS.get();
+       for (MeshBuilder b : builders) {
+          b.init();
+       }
+       int depth = this.level.depth;
+       for (int x = this.x0; x < this.x0 + 16; x++) {
+          for (int z = this.z0; z < this.z0 + 16; z++) {
+             byte[] col = view.column(x, z);
+             byte[] dataCol = view.dataColumn(x, z);
+            int top = depth - 1;
+            while (top >= 0 && col[top] == 0) {
+               top--;
+            }
+            for (int y = 0; y <= top; y++) {
+               int tileId = col[y] & 0xFF;
+               if (tileId == 0) {
+                  continue;
                }
+               Block block = Blocks.byId(tileId);
+               if (block == null) {
+                  continue;
+               }
+               if (block.light > 0 && this.level.getBlockLevel(x, y, z) < block.light) {
+                  this.level.floodAdd(x, y, z, block.light);
+               }
+                int data = dataCol == null ? 0 : dataCol[y] & 0xFF;
+                BlockState state = data == 0 ? block.state : Blocks.stateOf(block, data);
+                block.render(builders[0], view, 0, x, y, z, state);
+                block.render(builders[1], view, 1, x, y, z, state);
+                if (tileId == Blocks.WATER_ID) {
+                   block.render(builders[2], view, 2, x, y, z, state);
+                }
             }
          }
-         builders[layer] = b;
       }
       for (int layer = 0; layer < 3; layer++) {
          MeshBuilder b = builders[layer];

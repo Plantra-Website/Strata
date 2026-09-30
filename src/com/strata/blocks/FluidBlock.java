@@ -69,7 +69,7 @@ public class FluidBlock extends CubeBlock {
          float br = level.getBrightness(x, y - 1, z) * FULL;
          if (!legacy || br == FULL ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(this.bottomTexture, x, y, z, 0));
-            t.color(br, br, br);
+            lightColor(t, level, x, y - 1, z, FULL);
             float[] cx = {x0, x0, x1, x1};
             float[] cz = {z1, z0, z0, z1};
             float[] cu = {uv[0], uv[0], uv[2], uv[2]};
@@ -86,7 +86,7 @@ public class FluidBlock extends CubeBlock {
          float br = level.getBrightness(x, y + 1, z) * FULL;
          if (!legacy || br == FULL ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(this.topTexture, x, y, z, 1));
-            t.color(br, br, br);
+            lightColor(t, level, x, y + 1, z, FULL);
             float[] cy = {h11, h10, h00, h01};
             float[] cx = {x1, x1, x0, x0};
             float[] cz = {z1, z0, z0, z1};
@@ -104,9 +104,11 @@ public class FluidBlock extends CubeBlock {
          float br = level.getBrightness(x, y, z - 1) * SIDE;
          if (!legacy || br == SIDE ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(this.sideTexture, x, y, z, 2));
-            t.color(br, br, br);
+            lightColor(t, level, x, y, z - 1, SIDE);
+            float vt00 = CubeBlock.sliceV(uv[1], uv[3], h00 - y);
+            float vt10 = CubeBlock.sliceV(uv[1], uv[3], h10 - y);
             this.side(t, br, new float[]{x0, h00, z0, x1, h10, z0, x1, y0, z0, x0, y0, z0},
-               new float[]{uv[2], uv[1], uv[0], uv[1], uv[0], uv[3], uv[2], uv[3]}, 0.0F, -1.0F, this.overlayTexture);
+               new float[]{uv[2], vt00, uv[0], vt10, uv[0], uv[3], uv[2], uv[3]}, 0.0F, -1.0F, this.overlayTexture);
          }
       }
 
@@ -114,9 +116,11 @@ public class FluidBlock extends CubeBlock {
          float br = level.getBrightness(x, y, z + 1) * SIDE;
          if (!legacy || br == SIDE ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(this.sideTexture, x, y, z, 3));
-            t.color(br, br, br);
+            lightColor(t, level, x, y, z + 1, SIDE);
+            float vt01 = CubeBlock.sliceV(uv[1], uv[3], h01 - y);
+            float vt11 = CubeBlock.sliceV(uv[1], uv[3], h11 - y);
             this.side(t, br, new float[]{x0, h01, z1, x0, y0, z1, x1, y0, z1, x1, h11, z1},
-               new float[]{uv[0], uv[1], uv[0], uv[3], uv[2], uv[3], uv[2], uv[1]}, 0.0F, 1.0F, this.overlayTexture);
+               new float[]{uv[0], vt01, uv[0], uv[3], uv[2], uv[3], uv[2], vt11}, 0.0F, 1.0F, this.overlayTexture);
          }
       }
 
@@ -124,9 +128,11 @@ public class FluidBlock extends CubeBlock {
          float br = level.getBrightness(x - 1, y, z) * EDGE;
          if (!legacy || br == EDGE ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(this.sideTexture, x, y, z, 4));
-            t.color(br, br, br);
+            lightColor(t, level, x - 1, y, z, EDGE);
+            float vt01 = CubeBlock.sliceV(uv[1], uv[3], h01 - y);
+            float vt00 = CubeBlock.sliceV(uv[1], uv[3], h00 - y);
             this.side(t, br, new float[]{x0, h01, z1, x0, h00, z0, x0, y0, z0, x0, y0, z1},
-               new float[]{uv[2], uv[1], uv[0], uv[1], uv[0], uv[3], uv[2], uv[3]}, -1.0F, 0.0F, this.overlayTexture);
+               new float[]{uv[2], vt01, uv[0], vt00, uv[0], uv[3], uv[2], uv[3]}, -1.0F, 0.0F, this.overlayTexture);
          }
       }
 
@@ -134,9 +140,11 @@ public class FluidBlock extends CubeBlock {
          float br = level.getBrightness(x + 1, y, z) * EDGE;
          if (!legacy || br == EDGE ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(this.sideTexture, x, y, z, 5));
-            t.color(br, br, br);
+            lightColor(t, level, x + 1, y, z, EDGE);
+            float vt10 = CubeBlock.sliceV(uv[1], uv[3], h10 - y);
+            float vt11 = CubeBlock.sliceV(uv[1], uv[3], h11 - y);
             this.side(t, br, new float[]{x1, y0, z1, x1, y0, z0, x1, h10, z0, x1, h11, z1},
-               new float[]{uv[0], uv[3], uv[2], uv[3], uv[2], uv[1], uv[0], uv[1]}, 1.0F, 0.0F, this.overlayTexture);
+               new float[]{uv[0], uv[3], uv[2], uv[3], uv[2], vt10, uv[0], vt11}, 1.0F, 0.0F, this.overlayTexture);
          }
       }
    }

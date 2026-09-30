@@ -53,6 +53,10 @@ else
 fi
 LIBDIR="$ROOT/lib"
 LIB="$LIBDIR/lwjgl.jar:$LIBDIR/lwjgl_util.jar:$LIBDIR/jinput.jar"
+# Heap floor: streaming regularly parks 300-600MB (meshes, regions,
+# columns); starting there skips the early GC churn on every boot and
+# every one of the 60 test JVMs. No ceiling change (default is fine).
+JAVA_FLAGS="-Xms256m"
 # Temp roots honor the platform (macOS sets TMPDIR, Linux usually /tmp).
 TMPDIR="${TMPDIR:-/tmp}"
 
@@ -61,6 +65,14 @@ compile() {
   # files behind (DepTest scans out/ and would false-positive on ghosts).
   rm -rf out
   mkdir -p out
+  # Alt-discovery index (see AtlasStitcher.hasTexture): probing
+  # getResourceAsStream x99 per tile base costs seconds on the first
+  # stitch (far worse from a jar). Regenerated every compile so it can
+  # never go stale; rides into out/ with the cp below (jars included).
+  # Absent index (hand-rolled tree) falls back to probing — slow, correct.
+  if [ -d res/textures ]; then
+    (cd res/textures && find . -name '*.png' | sed 's|^\./||' | sort > index.txt)
+  fi
   cp -r res/. out/
   # test/ is optional (published trees ship code only): compile it when present.
   SOURCES="$(find src -name '*.java')"
@@ -82,7 +94,11 @@ run_tests() {
     d="$TMPDIR/rbtest/$(echo "$t" | tr . _)"
     mkdir -p "$d"
     echo "=== $t ==="
-    (cd "$d" && "$JAVA_BIN" -cp "$ROOT/out:$ROOT/res:$LIB" "$t") || exit 1
+    # Headless: without this every fresh JVM activates as a GUI app and
+    # steals focus (60 Dock bounces per suite run). Tests only need
+    # BufferedImage/ImageIO/fonts, all headless-safe — no test opens a
+    # window or GL context.
+    (cd "$d" && "$JAVA_BIN" $JAVA_FLAGS -Djava.awt.headless=true -cp "$ROOT/out:$ROOT/res:$LIB" "$t") || exit 1
   done
   rm -rf "$TMPDIR/rbtest"
   if [ "$found" = "0" ]; then
@@ -92,7 +108,7 @@ run_tests() {
 
 case "${1:-build}" in
   build) compile; echo BUILD_OK ;;
-  run) shift; compile; echo BUILD_OK; "$JAVA_BIN" -cp "out:res:$LIB" com.strata.Boot "$@" ;;
+  run) shift; compile; echo BUILD_OK; "$JAVA_BIN" $JAVA_FLAGS -cp "out:res:$LIB" com.strata.Boot "$@" ;;
   test) compile; echo BUILD_OK; run_tests ;;
   strip)
     if [ ! -f tools/strip.py ]; then

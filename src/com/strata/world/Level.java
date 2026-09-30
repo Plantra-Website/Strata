@@ -6,6 +6,7 @@ import com.strata.blocks.BlockView;
 import com.strata.blocks.Blocks;
 import com.strata.blocks.Fluid;
 import com.strata.core.AABB;
+import com.strata.core.BlockerProbe;
 import com.strata.core.Config;
 import com.strata.core.Debug;
 import com.strata.core.Dirs;
@@ -226,9 +227,18 @@ public class Level implements BlockView, LightWorld {
 
 
     private byte[] defaultColumn(int x, int z) {
+       long key = columnKey(x, z);
+       Integer cached = this.heightCache.get(key);
+       int h;
+       if (cached == null) {
+          h = this.gen.heightAt(x, z);
+          this.heightCache.put(key, h);
+       } else {
+          h = cached;
+       }
        byte[] col = new byte[this.depth];
        for (int y = 0; y < this.depth; y++) {
-          col[y] = (byte)this.defaultTile(x, y, z);
+          col[y] = (byte)this.gen.blockAt(x, y, z, h);
        }
        return col;
     }
@@ -282,11 +292,44 @@ public class Level implements BlockView, LightWorld {
        }
        col = this.computed.get(key);
        if (col == null) {
-          byte[] fresh = this.defaultColumn(x, z);
-          byte[] prev = this.computed.putIfAbsent(key, fresh);
-          col = (prev != null) ? prev : fresh;
+          col = this.computeOnce(key, x, z);
        }
        return col[y] & 0xFF;
+    }
+
+    public byte[] readColumn(int x, int z) {
+       long key = columnKey(x, z);
+       byte[] col = this.columns.get(key);
+       if (col != null) {
+          return col;
+       }
+       col = this.computed.get(key);
+       if (col == null) {
+          col = this.computeOnce(key, x, z);
+       }
+       return col;
+    }
+
+    public byte[] readDataColumn(int x, int z) {
+       return this.dataColumns.get(columnKey(x, z));
+    }
+
+    private final Object[] genLocks = new Object[64];
+    {
+       for (int i = 0; i < genLocks.length; i++) {
+          genLocks[i] = new Object();
+       }
+    }
+
+    private byte[] computeOnce(long key, int x, int z) {
+       synchronized (this.genLocks[(int)(key ^ (key >>> 32)) & 63]) {
+          byte[] col = this.computed.get(key);
+          if (col == null) {
+             col = this.defaultColumn(x, z);
+             this.computed.put(key, col);
+          }
+          return col;
+       }
     }
 
    public boolean isSolidTile(int x, int y, int z) {
@@ -399,10 +442,10 @@ public class Level implements BlockView, LightWorld {
       for (int i = 0; i < th; i++) {
          this.setTile(x, y + i, z, log);
       }
-      for (int ly = top - (spruce ? 3 : 2); ly <= top + 1; ly++) {
-         for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
-               boolean leaf = spruce ? TreeShapes.spruce(dx, ly - top, dz)
+      for (int ly = spruce ? y + 1 : top - 2; ly <= top + 1; ly++) {
+         for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+               boolean leaf = spruce ? TreeShapes.spruce(dx, ly - top, dz, th, false, x + dx, z + dz)
                   : TreeShapes.round(dx, ly - top, dz, x + dx, z + dz);
                if (leaf && this.getTile(x + dx, ly, z + dz) == 0) {
                   this.setTile(x + dx, ly, z + dz, leaves);
@@ -457,6 +500,10 @@ public class Level implements BlockView, LightWorld {
 
     public void reconcileSkyChunk(int ccx, int ccz) {
        this.skyLight.reconcileSkyChunk(ccx, ccz);
+    }
+
+    public void reconcileSkyChunk(int ccx, int ccz, BlockerProbe tiles) {
+       this.skyLight.reconcileSkyChunk(ccx, ccz, tiles);
     }
 
     private volatile int skylightSub = 0;

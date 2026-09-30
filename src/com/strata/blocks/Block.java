@@ -47,6 +47,10 @@ public abstract class Block {
 
    public abstract void render(MeshBuilder builder, BlockView view, int layer, int x, int y, int z);
 
+   protected static void lightColor(MeshBuilder b, BlockView v, int x, int y, int z, float shade) {
+      b.color(shade, v.getSkyLevel(x, y, z) / 15.0F, v.getBlockLevel(x, y, z) / 15.0F);
+   }
+
    public AABB pickBox(int x, int y, int z) {
       return new AABB(x, y, z, x + 1.0F, y + 1.0F, z + 1.0F);
    }

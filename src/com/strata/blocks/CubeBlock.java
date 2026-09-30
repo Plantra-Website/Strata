@@ -81,6 +81,16 @@ public class CubeBlock extends Block {
       return pick == 0 ? baseSlot : alts[pick - 1];
    }
 
+   static float sliceV(float vTop, float vBottom, float h) {
+      if (h < 0.0F) {
+         h = 0.0F;
+      }
+      if (h > 1.0F) {
+         h = 1.0F;
+      }
+      return vTop + (1.0F - h) * (vBottom - vTop);
+   }
+
    private static int snowedSide = -1;
 
    @Override
@@ -105,7 +115,7 @@ public class CubeBlock extends Block {
          float br = level.getBrightness(x, y - 1, z) * FULL;
          if (br == FULL ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(this.bottomTexture, x, y, z, 0));
-            t.color(br, br, br);
+            lightColor(t, level, x, y - 1, z, FULL);
             float[] cx = {x0, x0, x1, x1};
             float[] cz = {z1, z0, z0, z1};
             float[] cu = {uv[0], uv[0], uv[2], uv[2]};
@@ -122,7 +132,7 @@ public class CubeBlock extends Block {
          float br = level.getBrightness(x, y + 1, z) * FULL;
          if (br == FULL ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(this.topTexture, x, y, z, 1));
-            t.color(br, br, br);
+            lightColor(t, level, x, y + 1, z, FULL);
             float[] cx = {x1, x1, x0, x0};
             float[] cz = {z1, z0, z0, z1};
             float[] cu = {uv[2], uv[2], uv[0], uv[0]};
@@ -139,7 +149,7 @@ public class CubeBlock extends Block {
          float br = level.getBrightness(x, y, z - 1) * SIDE;
          if (br == SIDE ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(sideTile, x, y, z, 2));
-            t.color(br, br, br);
+            lightColor(t, level, x, y, z - 1, SIDE);
             this.side(t, br, new float[]{x0, y1, z0, x1, y1, z0, x1, y0, z0, x0, y0, z0},
                new float[]{uv[2], uv[1], uv[0], uv[1], uv[0], uv[3], uv[2], uv[3]}, 0.0F, -1.0F, overlay);
          }
@@ -149,7 +159,7 @@ public class CubeBlock extends Block {
          float br = level.getBrightness(x, y, z + 1) * SIDE;
          if (br == SIDE ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(sideTile, x, y, z, 3));
-            t.color(br, br, br);
+            lightColor(t, level, x, y, z + 1, SIDE);
             this.side(t, br, new float[]{x0, y1, z1, x0, y0, z1, x1, y0, z1, x1, y1, z1},
                new float[]{uv[0], uv[1], uv[0], uv[3], uv[2], uv[3], uv[2], uv[1]}, 0.0F, 1.0F, overlay);
          }
@@ -159,7 +169,7 @@ public class CubeBlock extends Block {
          float br = level.getBrightness(x - 1, y, z) * EDGE;
          if (br == EDGE ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(sideTile, x, y, z, 4));
-            t.color(br, br, br);
+            lightColor(t, level, x - 1, y, z, EDGE);
             this.side(t, br, new float[]{x0, y1, z1, x0, y1, z0, x0, y0, z0, x0, y0, z1},
                new float[]{uv[2], uv[1], uv[0], uv[1], uv[0], uv[3], uv[2], uv[3]}, -1.0F, 0.0F, overlay);
          }
@@ -169,7 +179,7 @@ public class CubeBlock extends Block {
          float br = level.getBrightness(x + 1, y, z) * EDGE;
          if (br == EDGE ^ layer == 1) {
             float[] uv = AtlasStitcher.uv(variantTile(sideTile, x, y, z, 5));
-            t.color(br, br, br);
+            lightColor(t, level, x + 1, y, z, EDGE);
             this.side(t, br, new float[]{x1, y0, z1, x1, y0, z0, x1, y1, z0, x1, y1, z1},
                new float[]{uv[0], uv[3], uv[2], uv[3], uv[2], uv[1], uv[0], uv[1]}, 1.0F, 0.0F, overlay);
          }

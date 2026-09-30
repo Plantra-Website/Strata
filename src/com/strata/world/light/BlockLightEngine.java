@@ -14,8 +14,11 @@ public class BlockLightEngine {
       this.world = world;
    }
 
+   private static final int Z_MUL = 0x9E3779B1;
+   private static final int Z_INV = 0xe8b2f51;
+
    private static long key(int x, int z) {
-      return ((long)x << 32) | (z & 0xFFFFFFFFL);
+      return ((long)x << 32) | ((z * Z_MUL) & 0xFFFFFFFFL);
    }
 
    public int get(int x, int y, int z) {
@@ -152,7 +155,7 @@ public class BlockLightEngine {
    private void notifyColumns(HashSet<Long> cols) {
       for (long k : cols) {
          int x = (int)(k >> 32);
-         int z = (int)(k & 0xFFFFFFFFL);
+         int z = (int)k * Z_INV;
          this.world.lightColumnChanged(x, z, 0, this.world.depth());
       }
    }

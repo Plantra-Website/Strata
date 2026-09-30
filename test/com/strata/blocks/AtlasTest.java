@@ -122,6 +122,38 @@ public class AtlasTest {
          check(found, "tint names a stitched tile: " + name);
       }
 
+      {
+         final java.util.concurrent.atomic.AtomicReference<Throwable> boom =
+            new java.util.concurrent.atomic.AtomicReference<>();
+         Thread[] racers = new Thread[8];
+         for (int i = 0; i < racers.length; i++) {
+            final int k = i;
+            racers[i] = new Thread(() -> {
+               try {
+                  for (int j = 0; j < 6; j++) {
+                     if ((k + j) % 2 == 0) {
+                        AtlasStitcher.stitch();
+                     } else {
+                        AtlasStitcher.altsFor(15);
+                        AtlasStitcher.uv(0);
+                     }
+                  }
+               } catch (Throwable t) {
+                  boom.compareAndSet(null, t);
+               }
+            });
+            racers[i].start();
+         }
+         for (Thread racer : racers) {
+            racer.join();
+         }
+         check(boom.get() == null, "concurrent stitch clean ("
+            + (boom.get() == null ? "ok" : boom.get().toString()) + ")");
+         check(AtlasStitcher.slot("blocks/grass_top.png") == 0, "slots stable after race");
+         float[] uv = AtlasStitcher.uv(0);
+         check(uv[2] > uv[0] && uv[3] > uv[1], "rects sane after race");
+      }
+
       if (failures > 0) { System.out.println(failures + " FAILURES"); System.exit(1); }
       System.out.println("ATLAS PASS");
    }

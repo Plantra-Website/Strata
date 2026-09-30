@@ -61,7 +61,7 @@ public class CactusBlock extends Block {
          float[] su = AtlasStitcher.uv(this.sideTexture);
          float[] tu = AtlasStitcher.uv(this.topTexture);
          float[] bu = AtlasStitcher.uv(this.bottomTexture);
-         t.color(br, br, br);
+         lightColor(t, level, x, y, z, 1.0F);
          if (show(level, x, y, z - 1)) {
             side(t, x0, y0, z0, x1, y0, z0, x1, y1, z0, x0, y1, z0, su);
          }

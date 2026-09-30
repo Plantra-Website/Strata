@@ -110,18 +110,23 @@ public final class AtlasStitcher {
 
    private static Map<String, BufferedImage> pack = new HashMap<>();
 
-   private static final ArrayList<String> ALT_NAMES = new ArrayList<>();
-   private static final HashMap<Integer, int[]> ALT_SLOTS = new HashMap<>();
+    private static final ArrayList<String> ALT_NAMES = new ArrayList<>();
+    private static final HashMap<Integer, int[]> ALT_SLOTS = new HashMap<>();
+    private static BufferedImage stitchedAtlas = null;
+
+   private static final int[] NO_ALTS = new int[0];
 
    public static int[] altsFor(int baseSlot) {
       ensureStitched();
       int[] alts = ALT_SLOTS.get(baseSlot);
-      return alts == null ? new int[0] : alts.clone();
+      return alts == null ? NO_ALTS : alts.clone();
    }
 
-   public static void setPack(Map<String, BufferedImage> overrides) {
-      pack = overrides == null ? new HashMap<>() : overrides;
-   }
+    public static synchronized void setPack(Map<String, BufferedImage> overrides) {
+       pack = overrides == null ? new HashMap<>() : overrides;
+       RECTS = null;
+       stitchedAtlas = null;
+    }
 
    public static int slot(String name) {
       for (int i = 0; i < TILES.length; i++) {
@@ -154,8 +159,11 @@ public final class AtlasStitcher {
       TINTS.put("blocks/tinted/oak_leaves.png", foliage);
    }
 
-   public static BufferedImage stitch() {
-      if (TILES.length > MAX_TILES) {
+    public static synchronized BufferedImage stitch() {
+       if (RECTS != null && stitchedAtlas != null) {
+          return stitchedAtlas;
+       }
+       if (TILES.length > MAX_TILES) {
          throw new RuntimeException(TILES.length + " tiles exceed the " + MAX_TILES + " slot index space");
       }
       ALPHA_MASKS.clear();
@@ -178,7 +186,7 @@ public final class AtlasStitcher {
             if (nameToSlot.containsKey(alt)) {
                continue;
             }
-            if (pack.containsKey(alt) || AtlasStitcher.class.getResourceAsStream("/textures/" + alt) != null) {
+            if (pack.containsKey(alt) || hasTexture(alt)) {
                alts.add(names.size());
                nameToSlot.put(alt, names.size());
                names.add(alt);
@@ -198,14 +206,17 @@ public final class AtlasStitcher {
       }
       ALT_SLOTS.clear();
       ALT_SLOTS.putAll(altMap);
-      Integer[] order = new Integer[names.size()];
-      java.util.ArrayList<java.util.ArrayList<BufferedImage>> allFrames =
-         new java.util.ArrayList<>(names.size());
-      for (int t = 0; t < names.size(); t++) {
-         order[t] = t;
-         BufferedImage raw = pack.containsKey(names.get(t)) ? pack.get(names.get(t)) : loadByName(names.get(t));
-         allFrames.add(splitFrames(raw));
-      }
+       Integer[] order = new Integer[names.size()];
+       java.util.ArrayList<java.util.ArrayList<BufferedImage>> allFrames =
+          new java.util.ArrayList<>(names.size());
+       BufferedImage[] raws = new BufferedImage[names.size()];
+       java.util.stream.IntStream.range(0, names.size()).parallel().forEach(t -> {
+          raws[t] = pack.containsKey(names.get(t)) ? pack.get(names.get(t)) : loadByName(names.get(t));
+       });
+       for (int t = 0; t < names.size(); t++) {
+          order[t] = t;
+          allFrames.add(splitFrames(raws[t]));
+       }
       BufferedImage[] face = new BufferedImage[names.size()];
       for (int t = 0; t < names.size(); t++) {
          face[t] = allFrames.get(t).get(0);
@@ -281,10 +292,55 @@ public final class AtlasStitcher {
             ANIM.put(t, frames);
          }
       }
-      RECTS = rect;
-      SHEET_PX = size;
-      return atlas;
-   }
+       RECTS = rect;
+       SHEET_PX = size;
+       stitchedAtlas = atlas;
+       return atlas;
+    }
+
+    public static BufferedImage atlasImage() {
+       ensureStitched();
+       return stitchedAtlas;
+    }
+
+    private static java.util.HashSet<String> resIndex = null;
+    private static boolean resIndexLoaded = false;
+
+    private static boolean hasTexture(String alt) {
+       if (pack.containsKey(alt)) {
+          return true;
+       }
+       if (!resIndexLoaded) {
+          resIndexLoaded = true;
+          try (java.io.InputStream in =
+             AtlasStitcher.class.getResourceAsStream("/textures/index.txt")) {
+             if (in != null) {
+                java.util.HashSet<String> names = new java.util.HashSet<>();
+                java.io.BufferedReader r = new java.io.BufferedReader(
+                   new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+                String line;
+                while ((line = r.readLine()) != null) {
+                   line = line.trim();
+                   if (!line.isEmpty()) {
+                      names.add(line);
+                   }
+                }
+                resIndex = names;
+             }
+          } catch (java.io.IOException e) {
+             resIndex = null;
+          }
+       }
+       if (resIndex == null) {
+          try (java.io.InputStream probe =
+             AtlasStitcher.class.getResourceAsStream("/textures/" + alt)) {
+             return probe != null;
+          } catch (java.io.IOException e) {
+             return false;
+          }
+       }
+       return resIndex.contains(alt);
+    }
 
    private static java.util.ArrayList<BufferedImage> splitFrames(BufferedImage img) {
       java.util.ArrayList<BufferedImage> out = new java.util.ArrayList<>();

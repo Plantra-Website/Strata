@@ -91,9 +91,9 @@ public class MeshTest {
                gotUV.add(t[(first + q) * 2] + "," + t[(first + q) * 2 + 1]);
             }
             check(wantSets.contains(gotUV), "top uv in a candidate tile set");
-            checkF(c[(first + k) * 3], 1.0f, "top full bright r");
-            checkF(c[(first + k) * 3 + 1], 1.0f, "top full bright g");
-            checkF(c[(first + k) * 3 + 2], 1.0f, "top full bright b");
+            checkF(c[(first + k) * 3], 1.0f, "top shade full r");
+            checkF(c[(first + k) * 3 + 1], 1.0f, "top full sky g");
+            checkF(c[(first + k) * 3 + 2], 0.0f, "top no block light b");
         }
         MeshBuilder b2 = new MeshBuilder();
         b2.init();

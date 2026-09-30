@@ -53,21 +53,49 @@ public class TerrainGenerator {
        GenLayer[] stack = GenLayer.buildStack(seed);
        this.coarseHead = stack[0];
        this.voronoiHead = stack[1];
-        this.fill = new GenChunkFill(seed, depth, gen1, gen2, gen3, gen4, gen5, gen6, coarseHead, voronoiHead);
+        this.fill = new GenChunkFill(seed, depth, gen1, gen2, gen3, gen4, gen5, gen6, coarseHead, this);
       this.carver = new CaveCarver(seed, depth);
    }
 
-   private final ConcurrentHashMap<Long, Integer> biomeCache = new ConcurrentHashMap<>();
+   private final ConcurrentHashMap<Long, int[]> biomeChunks = new ConcurrentHashMap<>();
+
+   private static final class Memo {
+      int bx = Integer.MIN_VALUE, bz;
+      int[] biomes;
+      int fx = Integer.MIN_VALUE, fz;
+      byte[] fillArr;
+      int dx = Integer.MIN_VALUE, dz;
+      Disc[] discs;
+      int lx = Integer.MIN_VALUE, lz;
+      Lake[] lakes;
+      int tx = Integer.MIN_VALUE, tz;
+      int[] trees;
+      int mx = Integer.MIN_VALUE, mz;
+      int[] shrooms;
+   }
+
+   private final ThreadLocal<Memo> memo = ThreadLocal.withInitial(Memo::new);
 
    public int genBiomeAt(int x, int z) {
-      long key = ((long)x << 32) | (z & 0xFFFFFFFFL);
-      Integer cached = this.biomeCache.get(key);
-      if (cached != null) {
-         return cached;
+      int ccx = x >> 4;
+      int ccz = z >> 4;
+      Memo m = this.memo.get();
+      if (m.biomes == null || m.bx != ccx || m.bz != ccz) {
+         m.biomes = this.biomeGrid(ccx, ccz);
+         m.bx = ccx;
+         m.bz = ccz;
       }
-      int b = this.voronoiHead.generate(x, z, 1, 1)[0];
-      this.biomeCache.put(key, b);
-      return b;
+      return m.biomes[(z & 15) * 16 + (x & 15)];
+   }
+
+   int[] biomeGrid(int ccx, int ccz) {
+      long key = ((long)ccx << 32) | (ccz & 0xFFFFFFFFL);
+      int[] g = this.biomeChunks.get(key);
+      if (g == null) {
+         g = this.voronoiHead.generate(ccx * 16, ccz * 16, 16, 16);
+         this.biomeChunks.put(key, g);
+      }
+      return g;
    }
 
    static final class Lobe {
@@ -168,6 +196,18 @@ public class TerrainGenerator {
    }
 
    Lake[] columnLakes(int x, int z) {
+      Memo m = this.memo.get();
+      if (m.lakes != null && m.lx == x && m.lz == z) {
+         return m.lakes;
+      }
+      Lake[] r = this.columnLakesRaw(x, z);
+      m.lakes = r;
+      m.lx = x;
+      m.lz = z;
+      return r;
+   }
+
+   private Lake[] columnLakesRaw(int x, int z) {
       int ccx = Math.floorDiv(x, 16);
       int ccz = Math.floorDiv(z, 16);
       int lx = Math.floorMod(x, 16);
@@ -424,8 +464,15 @@ public class TerrainGenerator {
     }
 
    private int fillCell(int x, int y, int z) {
-      byte[] col = this.fill.fill(Math.floorDiv(x, 16), Math.floorDiv(z, 16));
-      return col[(Math.floorMod(x, 16) * 16 + Math.floorMod(z, 16)) * this.depth + y] & 0xFF;
+      int ccx = x >> 4;
+      int ccz = z >> 4;
+      Memo m = this.memo.get();
+      if (m.fillArr == null || m.fx != ccx || m.fz != ccz) {
+         m.fillArr = this.fill.fill(ccx, ccz);
+         m.fx = ccx;
+         m.fz = ccz;
+      }
+      return m.fillArr[((x & 15) * 16 + (z & 15)) * this.depth + y] & 0xFF;
    }
 
    public int blockAt(int x, int y, int z) {
@@ -581,7 +628,7 @@ public class TerrainGenerator {
              int top = base + th;
              int len = 1 + nonneg(hash2(this.seed ^ 0xB10E11L, x, z), 4);
              for (int d = 1; d <= len; d++) {
-                if (!TreeShapes.swamp(x - ox, (y + d) - top, z - oz)) {
+                if (!TreeShapes.swamp(x - ox, (y + d) - top, z - oz, x, z)) {
                    continue;
                 }
                 boolean clear = true;
@@ -646,7 +693,13 @@ public class TerrainGenerator {
        return stem;
     }
 
-    int shroomPart(int x, int y, int z) {
+    private int[] shroomCandidates(int x, int z) {
+       Memo m = this.memo.get();
+       if (m.shrooms != null && m.mx == x && m.mz == z) {
+          return m.shrooms;
+       }
+       int[] out = NO_CANDS;
+       int n = 0;
        for (int ox = x - CANOPY_R; ox <= x + CANOPY_R; ox++) {
           for (int oz = z - CANOPY_R; oz <= z + CANOPY_R; oz++) {
              if (nonneg(hash2(this.seed, ox, oz), 256) >= 1) {
@@ -656,24 +709,48 @@ public class TerrainGenerator {
              if (stem == 0) {
                 continue;
              }
-             int kind = this.shroomKind(ox, oz);
-             int base = this.heightAt(ox, oz);
-             int dx = x - ox;
-             int dz = z - oz;
-             if (dx == 0 && dz == 0 && y > base && y <= base + stem) {
-                return Blocks.MUSHROOM_STEM_ID;
+             if (n == 0) {
+                out = new int[5];
+             } else {
+                out = java.util.Arrays.copyOf(out, out.length + 5);
              }
-             int top = base + stem;
-             int adx = dx < 0 ? -dx : dx;
-             int adz = dz < 0 ? -dz : dz;
-             if (y == top) {
-                if (adx <= 1 && adz <= 1 && !(dx == 0 && dz == 0)) {
-                   return capForKind(kind);
-                }
-             } else if (y == top + 1) {
-                if (adx <= 1 && adz <= 1) {
-                   return capForKind(kind);
-                }
+             out[n * 5] = ox;
+             out[n * 5 + 1] = oz;
+             out[n * 5 + 2] = stem;
+             out[n * 5 + 3] = this.shroomKind(ox, oz);
+             out[n * 5 + 4] = this.heightAt(ox, oz);
+             n++;
+          }
+       }
+       m.shrooms = out;
+       m.mx = x;
+       m.mz = z;
+       return out;
+    }
+
+    int shroomPart(int x, int y, int z) {
+       int[] c = this.shroomCandidates(x, z);
+       for (int i = 0; i < c.length; i += 5) {
+          int ox = c[i];
+          int oz = c[i + 1];
+          int stem = c[i + 2];
+          int kind = c[i + 3];
+          int base = c[i + 4];
+          int dx = x - ox;
+          int dz = z - oz;
+          if (dx == 0 && dz == 0 && y > base && y <= base + stem) {
+             return Blocks.MUSHROOM_STEM_ID;
+          }
+          int top = base + stem;
+          int adx = dx < 0 ? -dx : dx;
+          int adz = dz < 0 ? -dz : dz;
+          if (y == top) {
+             if (adx <= 1 && adz <= 1 && !(dx == 0 && dz == 0)) {
+                return capForKind(kind);
+             }
+          } else if (y == top + 1) {
+             if (adx <= 1 && adz <= 1) {
+                return capForKind(kind);
              }
           }
        }
@@ -692,11 +769,11 @@ public class TerrainGenerator {
             evicted++;
          }
       }
-      var ib = this.biomeCache.entrySet().iterator();
+      var ib = this.biomeChunks.entrySet().iterator();
       while (ib.hasNext()) {
          long k = ib.next().getKey();
-         int cx = Math.floorDiv((int)(k >> 32), 16);
-         int cz = Math.floorDiv((int)(k & 0xFFFFFFFFL), 16);
+         int cx = (int)(k >> 32);
+         int cz = (int)(k & 0xFFFFFFFFL);
          if (Math.abs(cx - pcx) > keepChunks || Math.abs(cz - pcz) > keepChunks) {
             ib.remove();
             evicted++;
@@ -746,7 +823,13 @@ public class TerrainGenerator {
          + this.fill.evictFar(pcx, pcz, keepChunks);
    }
 
-    int treePart(int x, int y, int z) {
+    private int[] treeCandidates(int x, int z) {
+       Memo m = this.memo.get();
+       if (m.trees != null && m.tx == x && m.tz == z) {
+          return m.trees;
+       }
+       int[] out = NO_CANDS;
+       int n = 0;
        for (int ox = x - CANOPY_R; ox <= x + CANOPY_R; ox++) {
           for (int oz = z - CANOPY_R; oz <= z + CANOPY_R; oz++) {
              if (nonneg(hash2(this.seed, ox, oz), 256) >= 11) {
@@ -764,28 +847,58 @@ public class TerrainGenerator {
              if (th == 0) {
                 continue;
              }
-             int species = this.treeSpecies(ox, oz);
-             int base = this.heightAt(ox, oz);
-             int dx = x - ox;
-             int dz = z - oz;
-             int log = logForSpecies(species);
-             int leaves = leavesForSpecies(species);
-             if (dx == 0 && dz == 0 && y > base && y <= base + th) {
-                return log;
+             if (n == 0) {
+                out = new int[25];
+             } else if (n * 5 + 5 > out.length) {
+                out = java.util.Arrays.copyOf(out, out.length * 2);
              }
-             int top = base + th;
-             boolean cone = species == SPRUCE_SHORT || species == SPRUCE_TALL;
-             boolean leaf;
-             if (cone) {
-                leaf = TreeShapes.spruce(dx, y - top, dz);
-             } else if (species == SWAMP_OAK) {
-                leaf = TreeShapes.swamp(dx, y - top, dz);
-             } else {
-                leaf = TreeShapes.round(dx, y - top, dz, x, z);
-             }
-             if (leaf) {
-                return leaves;
-             }
+             out[n * 5] = ox;
+             out[n * 5 + 1] = oz;
+             out[n * 5 + 2] = th;
+             out[n * 5 + 3] = this.treeSpecies(ox, oz);
+             out[n * 5 + 4] = this.heightAt(ox, oz);
+             n++;
+          }
+       }
+       if (n > 0) {
+          out = java.util.Arrays.copyOf(out, n * 5);
+       }
+       m.trees = out;
+       m.tx = x;
+       m.tz = z;
+       return out;
+    }
+
+    private static final int[] NO_CANDS = new int[0];
+
+    int treePart(int x, int y, int z) {
+       int[] c = this.treeCandidates(x, z);
+       for (int i = 0; i < c.length; i += 5) {
+          int ox = c[i];
+          int oz = c[i + 1];
+          int th = c[i + 2];
+          int species = c[i + 3];
+          int base = c[i + 4];
+          int dx = x - ox;
+          int dz = z - oz;
+          int log = logForSpecies(species);
+          int leaves = leavesForSpecies(species);
+          if (dx == 0 && dz == 0 && y > base && y <= base + th) {
+             return log;
+          }
+          int top = base + th;
+          boolean cone = species == SPRUCE_SHORT || species == SPRUCE_TALL;
+          boolean leaf;
+          if (cone) {
+             leaf = TreeShapes.spruce(dx, y - top, dz, th,
+                species == SPRUCE_TALL, x, z);
+          } else if (species == SWAMP_OAK) {
+             leaf = TreeShapes.swamp(dx, y - top, dz, x, z);
+          } else {
+             leaf = TreeShapes.round(dx, y - top, dz, x, z);
+          }
+          if (leaf) {
+             return leaves;
           }
        }
        return 0;
@@ -810,6 +923,18 @@ public class TerrainGenerator {
    private final ConcurrentHashMap<Long, Disc[]> discCache = new ConcurrentHashMap<>();
 
    Disc[] discsForChunk(int ccx, int ccz) {
+      Memo m = this.memo.get();
+      if (m.dx == ccx && m.dz == ccz && m.discs != null) {
+         return m.discs == NO_DISCS ? null : m.discs;
+      }
+      Disc[] d = this.discsForChunkRaw(ccx, ccz);
+      m.discs = d == null ? NO_DISCS : d;
+      m.dx = ccx;
+      m.dz = ccz;
+      return d;
+   }
+
+   private Disc[] discsForChunkRaw(int ccx, int ccz) {
       long key = ((long)ccx << 32) | (ccz & 0xFFFFFFFFL);
       Disc[] hit = this.discCache.get(key);
       if (hit != null) {
