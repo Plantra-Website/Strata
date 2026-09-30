@@ -15,6 +15,7 @@ public class Player extends Entity {
    private float fallPeak = 0.0F;
    private boolean landed = true;
    private int lavaClock = 0;
+   private int cactusClock = 0;
 
    public Player(Level level) {
       this.level = level;
@@ -102,6 +103,7 @@ public class Player extends Entity {
    public void respawn() {
       this.hp = 20;
       this.lavaClock = 0;
+      this.cactusClock = 0;
       this.resetPos();
    }
 
@@ -149,20 +151,36 @@ public class Player extends Entity {
          xa++;
       }
 
-      if (in.jump && this.onGround) {
-         this.yd = 0.12F;
-      }
+       if (in.jump && this.onGround) {
+          this.yd = 0.12F;
+       }
 
-      this.moveRelative(xa, ya, this.onGround ? 0.02F : 0.005F);
-      this.yd = (float)(this.yd - 0.005);
-      this.move(this.xd, this.yd, this.zd);
-      this.xd *= 0.91F;
-      this.yd *= 0.98F;
-      this.zd *= 0.91F;
-      if (this.onGround) {
-         this.xd *= 0.8F;
-         this.zd *= 0.8F;
-      }
+       float feetNow = this.bb.y0;
+       int waterFeet = this.level.getTile(MathHelper.floor(this.x),
+          MathHelper.floor(feetNow + 0.1F), MathHelper.floor(this.z));
+       int waterUnder = this.level.getTile(MathHelper.floor(this.x),
+          MathHelper.floor(feetNow - 0.1F), MathHelper.floor(this.z));
+       boolean inWater = waterFeet == Blocks.WATER_ID || waterUnder == Blocks.WATER_ID;
+       if (in.jump && inWater) {
+          this.yd = 0.05F;
+       }
+
+       this.moveRelative(xa, ya, this.onGround ? 0.02F : (inWater ? 0.01F : 0.005F));
+       this.yd = (float)(this.yd - (inWater ? 0.0012F : 0.005F));
+       this.move(this.xd, this.yd, this.zd);
+       this.xd *= inWater ? 0.8F : 0.91F;
+       this.yd *= 0.98F;
+       this.zd *= inWater ? 0.8F : 0.91F;
+       if (inWater) {
+          this.fallPeak = this.bb.y0;
+       }
+       if (this.onGround) {
+          int groundId = this.level.getTile(MathHelper.floor(this.x),
+             MathHelper.floor(this.bb.y0 - 0.1F), MathHelper.floor(this.z));
+          float grip = groundId == Blocks.ICE_ID ? 0.98F : 0.8F;
+          this.xd *= grip;
+          this.zd *= grip;
+       }
       if (!this.spectator) {
          float feet = this.bb.y0;
          if (this.onGround) {
@@ -186,6 +204,14 @@ public class Player extends Entity {
             }
          } else {
             this.lavaClock = 0;
+         }
+         if (feetId == Blocks.CACTUS_ID || underId == Blocks.CACTUS_ID) {
+            if (++this.cactusClock >= 20) {
+               this.cactusClock = 0;
+               this.hurt(1);
+            }
+         } else {
+            this.cactusClock = 0;
          }
       }
    }

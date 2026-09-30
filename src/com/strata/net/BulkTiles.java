@@ -8,6 +8,7 @@ import java.util.Map;
 
 public class BulkTiles extends Packet {
    public Map<Long, byte[]> columns = new HashMap<>();
+   public Map<Long, byte[]> datas = new HashMap<>();
 
    static {
       Packet.register(12, BulkTiles::new);
@@ -24,6 +25,13 @@ public class BulkTiles extends Packet {
          out.writeInt(col.length);
          out.write(col);
       }
+      out.writeInt(this.datas.size());
+      for (Map.Entry<Long, byte[]> e : this.datas.entrySet()) {
+         out.writeLong(e.getKey());
+         byte[] col = e.getValue();
+         out.writeInt(col.length);
+         out.write(col);
+      }
    }
 
    @Override
@@ -35,6 +43,14 @@ public class BulkTiles extends Packet {
          byte[] col = new byte[in.readInt()];
          in.readFully(col);
          this.columns.put(key, col);
+      }
+      int dcount = in.readInt();
+      this.datas = new HashMap<>(dcount * 2 + 1);
+      for (int i = 0; i < dcount; i++) {
+         long key = in.readLong();
+         byte[] col = new byte[in.readInt()];
+         in.readFully(col);
+         this.datas.put(key, col);
       }
    }
 }

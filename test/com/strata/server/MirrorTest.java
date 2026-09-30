@@ -16,7 +16,7 @@ public class MirrorTest {
    }
 
    static int surface(Level l, int x, int z) {
-      for (int y = 63; y >= 0; y--) {
+      for (int y = l.depth - 1; y >= 0; y--) {
          int t = l.getTile(x, y, z);
          if (t > 0 && t != 13 && t != 14 && t != 15 && t != 16 && t != 17 && t != 20) return y;
       }
@@ -48,7 +48,7 @@ public class MirrorTest {
    public static void main(String[] args) {
       LocalConnection conn = new LocalConnection();
       GameServer server = new GameServer(conn);
-      Level client = new Level(64, false);
+      Level client = new Level(Level.WORLD_DEPTH, false);
       Level sl = server.level();
 
       int bx = 30, bz = 30;
@@ -90,7 +90,7 @@ public class MirrorTest {
       int mism = 0;
       for (int x = bx - 4; x <= bx + 5; x++) {
          for (int z = bz - 4; z <= bz + 5; z++) {
-            for (int y = 0; y < 64; y++) {
+            for (int y = 0; y < Level.WORLD_DEPTH; y++) {
                if (sl.getTile(x, y, z) != client.getTile(x, y, z)
                   || sl.getSkyLevel(x, y, z) != client.getSkyLevel(x, y, z)
                   || sl.getBlockLevel(x, y, z) != client.getBlockLevel(x, y, z)) {

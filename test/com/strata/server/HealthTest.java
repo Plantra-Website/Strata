@@ -55,11 +55,24 @@ public class HealthTest {
 
       int lx = 60, lz = 60;
       int lh = ItemTest.surface(s.level(), lx, lz);
-      s.level().setTile(lx, lh + 1, lz, Blocks.LAVA_ID);
+      s.level().setTile(lx, lh + 4, lz, Blocks.DIRT_ID);
+      s.level().setTile(lx, lh + 5, lz, Blocks.LAVA_ID);
       pl.hp = 20;
-      pl.teleport(lx + 0.5F, lh + 2.5F, lz + 0.5F);
+      pl.teleport(lx + 0.5F, lh + 6.5F, lz + 0.5F);
       drain(s, conn, 100);
       check(pl.hp <= 12, "lava burns (hp=" + pl.hp + ")");
+
+      int cx = 70, cz = 70;
+      int ch = ItemTest.surface(s.level(), cx, cz);
+      s.level().setTile(cx, ch + 1, cz, Blocks.CACTUS_ID);
+      pl.hp = 20;
+      pl.teleport(cx + 0.5F, ch + 3.0F, cz + 0.5F);
+      drain(s, conn, 40);
+      check(pl.hp < 20, "cactus pricks (hp=" + pl.hp + ")");
+      pl.teleport(cx + 2.5F, ch + 1.6F, cz + 0.5F);
+      pl.hp = 20;
+      drain(s, conn, 30);
+      check(pl.hp == 20, "clear air is safe (hp=" + pl.hp + ")");
 
       pl.hurt(100);
       drain(s, conn, 3);

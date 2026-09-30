@@ -55,6 +55,42 @@ public final class AtlasStitcher {
       "blocks/grass_side_overlay.png",
       "blocks/oak_planks.png",
       "blocks/torch_on.png",
+      "blocks/water_still.png",
+      "blocks/sandstone_side.png",
+      "blocks/sandstone_top.png",
+      "blocks/sandstone_bottom.png",
+      "blocks/ice.png",
+      "blocks/mycelium_top.png",
+      "blocks/mycelium_side.png",
+      "blocks/cactus_side.png",
+      "blocks/cactus_top.png",
+      "blocks/cactus_bottom.png",
+      "blocks/reeds.png",
+      "blocks/deadbush.png",
+      "blocks/mushroom_brown.png",
+      "blocks/mushroom_red.png",
+      "blocks/clay.png",
+      "blocks/pumpkin_side.png",
+      "blocks/pumpkin_top.png",
+      "blocks/vine.png",
+      "blocks/waterlily.png",
+      "blocks/snow.png",
+      "blocks/birch_log_side.png",
+      "blocks/birch_log_top.png",
+      "blocks/spruce_log_side.png",
+      "blocks/spruce_log_top.png",
+      "blocks/birch_leaves.png",
+      "blocks/spruce_leaves.png",
+      "blocks/birch_sapling.png",
+      "blocks/spruce_sapling.png",
+      "blocks/mossy_cobblestone.png",
+      "blocks/redstone_ore.png",
+      "blocks/mob_spawner.png",
+      "blocks/mushroom_block_inside.png",
+      "blocks/mushroom_block_skin_stem.png",
+      "blocks/mushroom_block_skin_brown.png",
+      "blocks/mushroom_block_skin_red.png",
+      "blocks/grass_side_snowed.png",
    };
 
    private AtlasStitcher() {
@@ -135,10 +171,10 @@ public final class AtlasStitcher {
          if (!seenBase.add(TILES[t])) {
             continue;
          }
-         String base = TILES[t].substring(0, TILES[t].length() - 4);
-         ArrayList<Integer> alts = new ArrayList<>();
-         for (int n = 1; n <= 9; n++) {
-            String alt = base + n + ".png";
+          String base = TILES[t].substring(0, TILES[t].length() - 4);
+          ArrayList<Integer> alts = new ArrayList<>();
+          for (int n = 1; n <= 99; n++) {
+             String alt = base + n + ".png";
             if (nameToSlot.containsKey(alt)) {
                continue;
             }

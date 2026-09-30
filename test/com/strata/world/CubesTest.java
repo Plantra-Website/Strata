@@ -1,5 +1,6 @@
 package com.strata.world;
 
+import com.strata.blocks.Blocks;
 import com.strata.core.AABB;
 import java.util.List;
 
@@ -11,8 +12,10 @@ public class CubesTest {
     }
 
     static int surface(Level l, int x, int z) {
-        for (int y = 63; y >= 0; y--)
-            if (l.getTile(x, y, z) > 0) return y;
+        for (int y = 63; y >= 0; y--) {
+            int t = l.getTile(x, y, z);
+            if (t > 0 && Blocks.isSolid(t)) return y;
+        }
         return -1;
     }
 

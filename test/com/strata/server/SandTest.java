@@ -8,6 +8,7 @@ import com.strata.net.ItemSpawn;
 import com.strata.net.LocalConnection;
 import com.strata.net.Packet;
 import com.strata.net.PlaceBlock;
+import com.strata.world.gen.TerrainGenerator;
 import java.io.File;
 import java.util.ArrayList;
 
@@ -105,6 +106,12 @@ public class SandTest {
       ItemTest.drain(s, conn, 3);
 
       int vx = x + 6;
+      for (int sx = x + 6; sx < x + 120; sx += 4) {
+         if (s.level().generator().heightAt(sx, z) > TerrainGenerator.SEA_LEVEL + 1) {
+            vx = sx;
+            break;
+         }
+      }
       int vh = ItemTest.surface(s.level(), vx, z);
       for (int y = 0; y <= vh; y++) {
          s.level().setTile(vx, y, z, 0);
@@ -134,6 +141,28 @@ public class SandTest {
       check(s.level().getTile(gx, gh, z) == Blocks.GRAVEL_ID, "gravel falls to the break");
       check(s.level().getTile(gx, gh + 1, z) == Blocks.GRAVEL_ID, "gravel stack follows");
       check(s.level().getTile(gx, gh + 2, z) == 0, "gravel vacates the top");
+
+      int wx = x + 18;
+      int wh = ItemTest.surface(s.level(), wx, z);
+      for (int dx = -4; dx <= 4; dx++) {
+         for (int dz = -4; dz <= 4; dz++) {
+            s.level().setTile(wx + dx, wh + 1, z + dz, Blocks.DIRT_ID);
+            s.level().setTile(wx + dx, wh + 2, z + dz, 0);
+            s.level().setTile(wx + dx, wh + 3, z + dz, 0);
+         }
+      }
+      for (int dx = -1; dx <= 1; dx++) {
+         for (int dz = -1; dz <= 1; dz++) {
+            s.level().setTile(wx + dx, wh + 2, z + dz, Blocks.WATER_ID);
+            s.level().setTile(wx + dx, wh + 3, z + dz, Blocks.WATER_ID);
+         }
+      }
+      conn.sendToServer(new DebugGive());
+      settle(s, conn, 5);
+      place(s, conn, wx, wh + 2, z, Blocks.SAND_ID);
+      settle(s, conn, 400);
+      check(s.level().getTile(wx, wh + 2, z) == Blocks.SAND_ID, "grain settles on the seabed");
+      check(s.level().getTile(wx, wh + 3, z) == Blocks.WATER_ID, "surface refills behind it");
 
       if (failures == 0) System.out.println("SAND PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }

@@ -33,7 +33,7 @@ public class HardnessTest {
 
    public static void main(String[] args) {
       check(Blocks.hardness(Blocks.BEDROCK_ID) <= 0, "bedrock unbreakable");
-      check(Blocks.hardness(Blocks.LAVA_ID) <= 0, "lava unbreakable");
+      check(Blocks.hardness(Blocks.LAVA_ID) == Blocks.hardness(Blocks.TORCH_ID), "lava fast-break like torch");
       check(Blocks.hardness(Blocks.DIRT_ID) < Blocks.hardness(Blocks.STONE_ID), "dirt faster than stone");
       check(Blocks.hardness(Blocks.STONE_ID) < Blocks.hardness(Blocks.DIAMOND_ID), "stone faster than diamond ore");
       check(Blocks.hardness(Blocks.TORCH_ID) < Blocks.hardness(Blocks.DIRT_ID), "torch instant-ish");

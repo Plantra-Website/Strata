@@ -92,53 +92,277 @@ public class VegTest {
       check(b1.count() == 0, "full-bright cross lives on layer 0");
       System.out.println("shape ok");
 
-      TerrainGenerator g = new TerrainGenerator(TerrainGenerator.DEFAULT_SEED, 64);
+      TerrainGenerator g = new TerrainGenerator(TerrainGenerator.DEFAULT_SEED, 128);
       int wood = 0, leaf = 0, rose = 0, dand = 0, tuft = 0, sap = 0;
+      int birch = 0, spruce = 0;
+      int dead = 0, shroom = 0, reed = 0, cactus = 0, snow = 0, lily = 0, ice = 0;
+      int lakeWater = 0, lakeLava = 0, pumpkin = 0, clay = 0, vine = 0;
+      java.util.ArrayList<int[]> pumpkinSpots = new java.util.ArrayList<>();
+      java.util.ArrayList<int[]> lavaSpots = new java.util.ArrayList<>();
       for (int x = -120; x <= 120; x++) {
          for (int z = -120; z <= 120; z++) {
             int h = g.heightAt(x, z);
-            for (int y = h + 1; y <= h + 8 && y < 64; y++) {
+            if (g.blockAt(x, h, z, h) == Blocks.CLAY_ID) {
+               clay++;
+            }
+            for (int y = h + 1; y <= h + 12 && y < 128; y++) {
                int id = g.blockAt(x, y, z, h);
                check(id == g.blockAt(x, y, z, h), "deterministic @" + x + "," + y + "," + z);
-               if (id == Blocks.WOOD_ID) {
+               if (Blocks.isLog(id)) {
                   wood++;
+                  if (id == Blocks.BIRCH_LOG_ID) {
+                     birch++;
+                  }
+                  if (id == Blocks.SPRUCE_LOG_ID) {
+                     spruce++;
+                  }
                   check(g.treeTrunkHeight(x, z) > 0, "trunk rooted @" + x + "," + z);
                   int base = g.heightAt(x, z);
                   int th = g.treeTrunkHeight(x, z);
                   check(y > base && y <= base + th, "trunk in range @" + x + "," + y + "," + z);
-               } else if (id == Blocks.LEAF_ID) {
+                  check(id == TerrainGenerator.logForSpecies(g.treeSpecies(x, z)), "log matches species @" + x + "," + z);
+               } else if (Blocks.isLeaves(id)) {
                   leaf++;
                   check(y > h, "canopy above surface");
                   check(canopyHosted(g, x, y, z), "canopy hosted @" + x + "," + y + "," + z);
-               } else if (id == Blocks.ROSE_ID) {
-                  rose++;
-                  check(y == h + 1, "rose on surface");
-                  check(coverGround(g, x, z, h), "rose on grass @" + x + "," + z);
-               } else if (id == Blocks.DANDELION_ID) {
-                  dand++;
-                  check(y == h + 1, "dandelion on surface");
-                  check(coverGround(g, x, z, h), "dandelion on grass @" + x + "," + z);
+               } else if (Blocks.isFlower(id)) {
+                  if (id == Blocks.ROSE_ID) {
+                     rose++;
+                  } else {
+                     dand++;
+                  }
+                  check(y == h + 1, "flower on surface");
+                  check(coverGround(g, x, z, h), "flower on grass @" + x + "," + z);
                } else if (id == Blocks.TALL_GRASS_ID) {
                   tuft++;
                   check(y == h + 1, "tuft on surface");
                   check(coverGround(g, x, z, h), "tuft on grass @" + x + "," + z);
-               } else if (id == Blocks.SAPLING_ID) {
+               } else if (Blocks.isSapling(id)) {
                   sap++;
                   check(y == h + 1, "sapling on surface");
                   check(coverGround(g, x, z, h), "sapling on grass @" + x + "," + z);
+               } else if (id == Blocks.DEADBUSH_ID) {
+                  dead++;
+                  check(y == h + 1, "deadbush on surface");
+                  int surf = g.blockAt(x, h, z, h);
+                  check(surf == Blocks.SAND_ID || surf == Blocks.GRASS_ID, "deadbush on sand/grass @" + x + "," + z);
+               } else if (Blocks.isMushroom(id)) {
+                  shroom++;
+                  check(y == h + 1, "mushroom on surface");
+                  int surf = g.blockAt(x, h, z, h);
+                  check(surf == Blocks.GRASS_ID || surf == Blocks.DIRT_ID, "mushroom on grass/dirt @" + x + "," + z);
+               } else if (id == Blocks.REED_ID) {
+                  reed++;
+                  check(y > h && y <= h + 4, "reed in stack @" + x + "," + y + "," + z);
+                  int surf = g.blockAt(x, h, z, h);
+                  int biome = g.genBiomeAt(x, z);
+                  check(g.isReedSite(x, z, h, surf, biome), "reed rooted @" + x + "," + z);
+                  check(y - h <= TerrainGenerator.reedHeight(x, z, TerrainGenerator.DEFAULT_SEED), "reed height @" + x + "," + y + "," + z);
+               } else if (id == Blocks.CACTUS_ID) {
+                  cactus++;
+                  check(y > h && y <= h + 4, "cactus in stack @" + x + "," + y + "," + z);
+                  int surf = g.blockAt(x, h, z, h);
+                  int biome = g.genBiomeAt(x, z);
+                  check(g.isCactusSite(x, z, h, surf, biome), "cactus rooted @" + x + "," + z);
+                  check(y - h <= TerrainGenerator.cactusHeight(x, z, TerrainGenerator.DEFAULT_SEED), "cactus height @" + x + "," + y + "," + z);
+               } else if (id == Blocks.PUMPKIN_ID) {
+                  pumpkin++;
+                  check(y == h + 1, "pumpkin on surface");
+                  check(g.blockAt(x, h, z, h) == Blocks.GRASS_ID, "pumpkin on grass @" + x + "," + z);
+                  pumpkinSpots.add(new int[]{x, z});
+               } else if (id == Blocks.VINE_ID) {
+                  vine++;
+                  check(y > h, "vine hangs above surface");
+                  check(g.vinePart(x, y, z) == Blocks.VINE_ID, "vine hosted @" + x + "," + y + "," + z);
+               } else if (id == Blocks.SNOW_LAYER_ID) {
+                  snow++;
+                  check(y == h + 1, "snow on surface");
+                  check(GenBiomes.snowy(g.genBiomeAt(x, z)), "snow in cold biome @" + x + "," + z);
+               } else if (id == Blocks.LILYPAD_ID) {
+                  lily++;
+                  check(y == TerrainGenerator.SEA_LEVEL, "lilypad on water surface");
+               } else if (id == Blocks.ICE_ID) {
+                  ice++;
+                  check(y == TerrainGenerator.SEA_LEVEL - 1
+                     || g.isLakeIce(x, y, z, g.columnLakes(x, z)), "ice placed @" + x + "," + y + "," + z);
+               } else if (id == Blocks.WATER_ID) {
+                  check(y <= TerrainGenerator.SEA_LEVEL || g.lakeLiquidAt(x, y, z) == Blocks.WATER_ID,
+                     "water fills to sea, lakes above @" + x + "," + y + "," + z);
+                  if (y > TerrainGenerator.SEA_LEVEL) {
+                     lakeWater++;
+                  }
+               } else if (id == Blocks.LAVA_ID) {
+                  check(g.lakeLiquidAt(x, y, z) == Blocks.LAVA_ID || y < 10,
+                     "lava from lakes or deep floods @" + x + "," + y + "," + z);
+                  if (g.lakeLiquidAt(x, y, z) == Blocks.LAVA_ID) {
+                     lakeLava++;
+                     if (lavaSpots.size() < 40) {
+                        lavaSpots.add(new int[]{x, y, z});
+                     }
+                  }
                } else {
                   check(id == 0, "only vegetation above surface (got " + id + ")");
                }
             }
          }
       }
-      System.out.println("wood=" + wood + " leaf=" + leaf + " rose=" + rose + " dandelion=" + dand + " tuft=" + tuft + " sapling=" + sap);
+      System.out.println("wood=" + wood + " leaf=" + leaf + " rose=" + rose + " dandelion=" + dand + " tuft=" + tuft + " sapling=" + sap + " birchLogs=" + birch + " spruceLogs=" + spruce
+         + " dead=" + dead + " shroom=" + shroom + " reed=" + reed + " cactus=" + cactus + " snow=" + snow + " lily=" + lily + " ice=" + ice
+         + " lakeWater=" + lakeWater + " lakeLava=" + lakeLava
+         + " pumpkin=" + pumpkin + " clay=" + clay + " vine=" + vine);
+      check(lakeWater > 0, "water lakes exist (1/4 chunks)");
+      check(lakeLava > 0, "lava lakes exist (1/8 chunks)");
+      int shell = 0;
+      int[][] dirs6 = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+      for (int[] p : lavaSpots) {
+         for (int[] d : dirs6) {
+            if (g.lavaShellAt(p[0] + d[0], p[1] + d[1], p[2] + d[2]) != 0) {
+               shell++;
+            }
+         }
+      }
+      System.out.println("lavaShell=" + shell);
+      check(shell > 0, "lava lakes wear stone shells");
+      check(pumpkin > 0, "pumpkins exist (rare grass, got " + pumpkin + ")");
+      int grouped = 0;
+      for (int[] p : pumpkinSpots) {
+         for (int[] q : pumpkinSpots) {
+            if (p != q && Math.abs(p[0] - q[0]) <= 8 && Math.abs(p[1] - q[1]) <= 8) {
+               grouped++;
+               break;
+            }
+         }
+      }
+      System.out.println("pumpkinGrouped=" + grouped + "/" + pumpkin);
+      check(pumpkinSpots.size() == pumpkin, "spots track pumpkins");
+      check(grouped * 10 >= pumpkin * 6, "pumpkins grow in groups (grouped " + grouped + "/" + pumpkin + ")");
+      check(vine > 0, "vines drape swamp canopies (got " + vine + ")");
       check(wood > 20, "trees exist");
       check(leaf > wood * 5, "canopies dwarf trunks");
       check(rose > 20 && dand > 20, "both flowers exist");
       check(tuft > rose + dand, "grass outnumbers flowers");
-      check(sap > 0, "saplings exist");
+      check(sap == 0, "no wild saplings (leaf drops only, got " + sap + ")");
+      check(birch > 0, "birch exists (forest 1/5)");
+      check(dead > 0, "deadbush exists (desert/swamp)");
+      check(shroom > 0, "mushrooms exist (swamp)");
+      check(reed > 0, "reeds exist (waterline, got " + reed + ")");
+      check(lily > 0, "lilypads exist (swamp water, got " + lily + ")");
+      int cactusNear = 0;
+      for (int x = 64; x <= 144; x++) {
+         for (int z = -336; z <= -264; z++) {
+            int h = g.heightAt(x, z);
+            for (int y = h + 1; y <= h + 4 && y < 128; y++) {
+               if (g.blockAt(x, y, z, h) == Blocks.CACTUS_ID) {
+                  cactusNear++;
+               }
+            }
+         }
+      }
+      System.out.println("cactusNearDesert=" + cactusNear);
+      check(cactusNear > 0, "cactus exists (desert window)");
+      TerrainGenerator g1 = new TerrainGenerator(1L, 128);
+      int snowNear = 0, iceNear = 0, openWater = 0;
+      for (int x = 96; x <= 184; x++) {
+         for (int z = -144; z <= -56; z++) {
+            int h = g1.heightAt(x, z);
+            for (int y = h + 1; y <= h + 2 && y < 128; y++) {
+               int id = g1.blockAt(x, y, z, h);
+               if (id == Blocks.SNOW_LAYER_ID) {
+                  snowNear++;
+                  int ground = g1.blockAt(x, h, z, h);
+                  check(ground == Blocks.GRASS_ID || ground == Blocks.DIRT_ID,
+                     "snow on grass/dirt @" + x + "," + z + " (got " + ground + ")");
+               }
+            }
+            int wtop = TerrainGenerator.SEA_LEVEL - 1;
+            if (wtop >= h && g1.blockAt(x, wtop, z, h) == Blocks.ICE_ID) {
+               iceNear++;
+            }
+            if (wtop >= h && g1.blockAt(x, wtop, z, h) == Blocks.WATER_ID
+               && GenBiomes.snowy(g1.genBiomeAt(x, z))) {
+               openWater++;
+            }
+         }
+      }
+      System.out.println("snowNear=" + snowNear + " iceNear=" + iceNear + " openWater=" + openWater);
+      check(snowNear > 0, "snow layers exist (cold window, seed 1)");
+      check(iceNear > 0, "ice exists (cold water, seed 1)");
+      check(openWater > 0, "frozen seas keep open shorelines");
+      int rockSnow = 0;
+      for (int x = 200; x <= 264; x++) {
+         for (int z = 0; z <= 64; z++) {
+            int h = g1.heightAt(x, z);
+            if (h <= TerrainGenerator.SEA_LEVEL) {
+               continue;
+            }
+            int ground = g1.blockAt(x, h, z, h);
+            if ((ground == Blocks.SAND_ID || ground == Blocks.STONE_ID || ground == Blocks.CLAY_ID)
+               && g1.blockAt(x, h + 1, z, h) == Blocks.SNOW_LAYER_ID) {
+               rockSnow++;
+            }
+         }
+      }
+      System.out.println("rockSnow=" + rockSnow);
+      check(rockSnow > 0, "snow covers cold rock/sand, not just grass");
+      int mycel = 0, isleShroom = 0, giantStem = 0, giantCap = 0, shoreClay = 0;
+      for (int x = 4040; x <= 4120; x++) {
+         for (int z = 2820; z <= 2900; z++) {
+            int biome = g.genBiomeAt(x, z);
+            if (biome != GenBiomes.MUSHROOM_ISLAND && biome != GenBiomes.MUSHROOM_SHORE) {
+               continue;
+            }
+            int h = g.heightAt(x, z);
+            if (g.blockAt(x, h, z, h) == Blocks.MYCELIUM_ID) {
+               mycel++;
+            }
+            if (g.blockAt(x, h, z, h) == Blocks.CLAY_ID) {
+               shoreClay++;
+            }
+            for (int y = h + 1; y <= h + 8 && y < 128; y++) {
+               int id = g.blockAt(x, y, z, h);
+               check(id == g.blockAt(x, y, z, h), "isle deterministic @" + x + "," + y + "," + z);
+               if (id == Blocks.MUSHROOM_BROWN_ID || id == Blocks.MUSHROOM_RED_ID) {
+                  isleShroom++;
+                  check(y == h + 1, "isle shroom on surface");
+               } else if (id == Blocks.MUSHROOM_STEM_ID) {
+                  giantStem++;
+                  check(g.shroomStemHeight(x, z) > 0, "giant stem rooted @" + x + "," + z);
+               } else if (id == Blocks.MUSHROOM_CAP_BROWN_ID || id == Blocks.MUSHROOM_CAP_RED_ID) {
+                  giantCap++;
+                  check(y > h, "giant cap above surface");
+               } else if (id == Blocks.REED_ID) {
+                  check(y > h && y <= h + 3, "isle reed in stack");
+               } else if (id == Blocks.WATER_ID || id == Blocks.LAVA_ID) {
+                  check(y <= TerrainGenerator.SEA_LEVEL || g.lakeLiquidAt(x, y, z) == id,
+                     "isle water is sea or lake @" + x + "," + y + "," + z);
+               } else {
+                  check(id == 0, "isle only shrooms+giants+shore-reeds+lakes above surface (got " + id + ")");
+               }
+            }
+         }
+      }
+      System.out.println("mycel=" + mycel + " isleShroom=" + isleShroom + " giantStem=" + giantStem + " giantCap=" + giantCap + " shoreClay=" + shoreClay);
+      check(mycel > 0, "mycelium paints the isle");
+      check(giantStem > 0, "giant mushrooms fruit (stems)");
+      check(giantCap > 0, "giant mushrooms fruit (caps)");
+      check(shoreClay > 0, "clay discs punch shore sand (got " + shoreClay + ")");
+      int spruceNear = 0;
+      for (int x = 240; x <= 304; x++) {
+         for (int z = -32; z <= 32; z++) {
+            int h = g.heightAt(x, z);
+            for (int y = h + 1; y <= h + 12 && y < 128; y++) {
+               if (g.blockAt(x, y, z, h) == Blocks.SPRUCE_LOG_ID) {
+                  spruceNear++;
+               }
+            }
+         }
+      }
+      System.out.println("spruceNearTaiga=" + spruceNear);
+      check(spruceNear > 0, "spruce exists (taiga window)");
+      check(TerrainGenerator.logForSpecies(TerrainGenerator.BIRCH) == Blocks.BIRCH_LOG_ID, "birch log maps");
+      check(TerrainGenerator.leavesForSpecies(TerrainGenerator.SPRUCE_TALL) == Blocks.SPRUCE_LEAVES_ID, "spruce leaves map");
       check(g.treeTrunkHeight(0, 0) == g.treeTrunkHeight(0, 0), "trunk memo stable");
+      check(g.treeSpecies(0, 0) == g.treeSpecies(0, 0), "species memo stable");
 
       if (failures > 0) { System.out.println(failures + " FAILURES"); System.exit(1); }
       System.out.println("VEG PASS");
@@ -149,27 +373,26 @@ public class VegTest {
    }
 
    static boolean canopyHosted(TerrainGenerator g, int x, int y, int z) {
-      for (int ox = x - 2; ox <= x + 2; ox++) {
-         for (int oz = z - 2; oz <= z + 2; oz++) {
+      for (int ox = x - 3; ox <= x + 3; ox++) {
+         for (int oz = z - 3; oz <= z + 3; oz++) {
             int th = g.treeTrunkHeight(ox, oz);
             if (th == 0) {
                continue;
             }
-            int base = g.heightAt(ox, oz);
-            int top = base + th;
-            int adx = Math.abs(x - ox), adz = Math.abs(z - oz);
-            if (y == top - 2 || y == top - 1) {
-               if (adx <= 2 && adz <= 2 && !(adx == 2 && adz == 2)) {
-                  return true;
-               }
-            } else if (y == top) {
-               if (adx <= 1 && adz <= 1) {
-                  return true;
-               }
-            } else if (y == top + 1) {
-               if (adx + adz <= 1) {
-                  return true;
-               }
+            int species = g.treeSpecies(ox, oz);
+            boolean cone = species == TerrainGenerator.SPRUCE_SHORT
+               || species == TerrainGenerator.SPRUCE_TALL;
+            int top = g.heightAt(ox, oz) + th;
+            boolean leaf;
+            if (cone) {
+               leaf = TreeShapes.spruce(x - ox, y - top, z - oz);
+            } else if (species == TerrainGenerator.SWAMP_OAK) {
+               leaf = TreeShapes.swamp(x - ox, y - top, z - oz);
+            } else {
+               leaf = TreeShapes.round(x - ox, y - top, z - oz, x, z);
+            }
+            if (leaf) {
+               return true;
             }
          }
       }

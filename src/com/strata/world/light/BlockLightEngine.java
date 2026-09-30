@@ -1,5 +1,6 @@
 package com.strata.world.light;
 
+import com.strata.core.Dirs;
 import com.strata.core.Profiler;
 import java.util.ArrayDeque;
 import java.util.HashSet;
@@ -8,7 +9,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BlockLightEngine {
    private final LightWorld world;
    private final ConcurrentHashMap<Long, byte[]> levels = new ConcurrentHashMap<>();
-   private static final int[][] DIRS = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
 
    public BlockLightEngine(LightWorld world) {
       this.world = world;
@@ -78,7 +78,7 @@ public class BlockLightEngine {
          if (nl <= 0) {
             continue;
          }
-         for (int[] d : DIRS) {
+         for (int[] d : Dirs.DIRS) {
             int nx = c[0] + d[0];
             int ny = c[1] + d[1];
             int nz = c[2] + d[2];
@@ -116,7 +116,7 @@ public class BlockLightEngine {
       queue.add(new int[]{x, y, z, oldLevel});
       while (!queue.isEmpty()) {
          int[] c = queue.poll();
-         for (int[] d : DIRS) {
+         for (int[] d : Dirs.DIRS) {
             int nx = c[0] + d[0];
             int ny = c[1] + d[1];
             int nz = c[2] + d[2];

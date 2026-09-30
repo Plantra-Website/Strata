@@ -16,13 +16,17 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
 
 class MeshData {
-   final float[][] verts = new float[2][];
-   final float[][] texs = new float[2][];
-   final float[][] cols = new float[2][];
-   final int[] counts = new int[2];
+   final float[][] verts = new float[3][];
+   final float[][] texs = new float[3][];
+   final float[][] cols = new float[3][];
+   final int[] counts = new int[3];
    final int version;
-   MeshData(int version) {
+   int y0;
+   int y1;
+   MeshData(int version, int depth) {
       this.version = version;
+      this.y0 = 0;
+      this.y1 = depth;
    }
 }
 
@@ -39,8 +43,8 @@ public class Chunk {
     volatile long queueSeq = 0L;
    static final int STRIDE_FLOATS = 8;
    static final int STRIDE_BYTES = STRIDE_FLOATS * 4;
-   private final int[] vbo = new int[2]; 
-   private final int[] counts = new int[2];
+   private final int[] vbo = new int[3]; 
+   private final int[] counts = new int[3];
    private boolean hasVbo = false;
    public static int updates = 0;
    public static long uploadNs = 0L;
@@ -63,7 +67,7 @@ public class Chunk {
    private static final ThreadLocal<MeshBuilder[]> BUILDERS = new ThreadLocal<MeshBuilder[]>() {
       @Override
       protected MeshBuilder[] initialValue() {
-         return new MeshBuilder[]{new MeshBuilder(), new MeshBuilder()};
+         return new MeshBuilder[]{new MeshBuilder(), new MeshBuilder(), new MeshBuilder()};
       }
    };
 
@@ -78,7 +82,7 @@ public class Chunk {
           long ms = (t2 - t0) / 1000000L;
           Debug.slow("mesh", ms, Config.SLOW_MESH_MS,
              "chunk " + this.x0 / 16 + "," + this.z0 / 16
-             + " verts=" + (m.counts[0] + m.counts[1])
+             + " verts=" + (m.counts[0] + m.counts[1] + m.counts[2])
              + " reconcile=" + (t1 - t0) / 1000000L + "ms"
              + " inner=" + (t2 - t1) / 1000000L + "ms");
           return m;
@@ -88,9 +92,9 @@ public class Chunk {
     }
 
     private MeshData meshInner() {
-      MeshData m = new MeshData(this.dirtyVersion);
+      MeshData m = new MeshData(this.dirtyVersion, this.level.depth);
       MeshBuilder[] builders = BUILDERS.get();
-      for (int layer = 0; layer < 2; layer++) {
+      for (int layer = 0; layer < 3; layer++) {
          MeshBuilder b = builders[layer];
          b.init();
          for (int x = this.x0; x < this.x0 + 16; x++) {
@@ -99,6 +103,9 @@ public class Chunk {
                    int tileId = this.level.getTile(x, y, z);
                    Block block = tileId > 0 ? Blocks.byId(tileId) : null;
                    if (block != null) {
+                       if (layer == 2 && tileId != Blocks.WATER_ID) {
+                          continue;
+                       }
                        if (block.light > 0 && this.level.getBlockLevel(x, y, z) < block.light) {
                           this.level.floodAdd(x, y, z, block.light);
                        }
@@ -111,7 +118,7 @@ public class Chunk {
          }
          builders[layer] = b;
       }
-      for (int layer = 0; layer < 2; layer++) {
+      for (int layer = 0; layer < 3; layer++) {
          MeshBuilder b = builders[layer];
          m.counts[layer] = b.count();
          if (m.counts[layer] > 0) {
@@ -119,6 +126,29 @@ public class Chunk {
             m.texs[layer] = b.texCoords();
             m.cols[layer] = b.colors();
          }
+      }
+      int lo = this.level.depth;
+      int hi = 0;
+      boolean any = false;
+      for (int layer = 0; layer < 3; layer++) {
+         float[] v = m.verts[layer];
+         if (v == null) {
+            continue;
+         }
+         for (int i = 1; i < v.length; i += 3) {
+            int y = (int)v[i];
+            if (y < lo) {
+               lo = y;
+            }
+            if (y > hi) {
+               hi = y;
+            }
+            any = true;
+         }
+      }
+      if (any) {
+         m.y0 = lo;
+         m.y1 = hi + 1;
       }
       return m;
    }
@@ -135,13 +165,13 @@ public class Chunk {
            long ms = (System.nanoTime() - t0) / 1000000L;
            Debug.slow("upload", ms, Config.SLOW_UPLOAD_MS,
               "chunk " + this.x0 / 16 + "," + this.z0 / 16
-              + " verts=" + (m.counts[0] + m.counts[1]));
+              + " verts=" + (m.counts[0] + m.counts[1] + m.counts[2]));
         }
      }
 
     private void uploadInner(MeshData m) {
       long t0 = System.nanoTime();
-      for (int layer = 0; layer < 2; layer++) {
+      for (int layer = 0; layer < 3; layer++) {
          this.counts[layer] = m.counts[layer];
          if (m.counts[layer] == 0) {
             continue;
@@ -154,6 +184,7 @@ public class Chunk {
       uploadNs += System.nanoTime() - t0;
       updates++;
       this.hasVbo = true;
+      this.aabb = new AABB(this.x0, m.y0, this.z0, this.x0 + 16, m.y1, this.z0 + 16);
       if (this.dirtyVersion == m.version) {
          this.dirty = false;
       }

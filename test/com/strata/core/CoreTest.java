@@ -27,7 +27,6 @@ public class CoreTest {
       check(Config.SUBMIT_BUDGET == 8 && Config.UPLOAD_BUDGET == 8, "budgets 8");
       check(Config.MESH_WORKERS == 5, "workers 5");
       check(Config.DAY_LENGTH == 28800L, "day length");
-      check(Config.FOG_DENSITY == 0.01F, "fog density");
       check(com.strata.client.GameClient.DAY_LENGTH == Config.DAY_LENGTH, "day alias");
       System.out.println("config ok");
 

@@ -12,9 +12,9 @@ public final class Config {
 
    public static boolean BLOCK_ROTATION = false;
 
-   public static boolean FANCY_LEAVES = false;
+   public static boolean FANCY_LEAVES = true;
 
-   public static boolean LEAF_BLACKOUT = true;
+   public static boolean LEAF_BLACKOUT = false;
 
    public static final long SLOW_MESH_MS = 150L;
    public static final long SLOW_UPLOAD_MS = 25L;
@@ -25,7 +25,5 @@ public final class Config {
    public static final long DAY_LENGTH = 28800L;
    public static final String VERSION = "0.0.1.0";
    public static final int AUTOSAVE_TICKS = 18000;
-
-   public static final float FOG_DENSITY = 0.01F;
 }
 

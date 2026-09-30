@@ -2,6 +2,7 @@ package com.strata.client;
 
 import com.strata.HitResult;
 import com.strata.blocks.AtlasStitcher;
+import com.strata.blocks.BlockTags;
 import com.strata.blocks.Blocks;
 import com.strata.core.Config;
 import com.strata.core.DayCycle;
@@ -157,6 +158,7 @@ public class GameClient implements Runnable {
    public void init() throws LWJGLException, IOException {
       mark("init start");
       AtlasStitcher.validate();
+      BlockTags.load();
       this.options = Options.load(new File("options.txt"));
       Config.VIEW_RADIUS = this.options.viewRadius;
       Log.info("options", "viewRadius=" + Config.VIEW_RADIUS + " sensitivity=" + this.options.sensitivity);
@@ -227,9 +229,9 @@ public class GameClient implements Runnable {
          com.strata.server.WorldImporter.importImage(this.server, img);
          this.server.save();
       }
-       this.level = new Level(64, false, this.server.level().generator());
+       this.level = new Level(Level.WORLD_DEPTH, false, this.server.level().generator());
       BulkTiles bulk = this.server.snapshot();
-      this.level.applyBulk(bulk.columns);
+      this.level.applyBulk(bulk.columns, bulk.datas);
       this.level.seedEmitters();
       mark("mirror synced (" + bulk.columns.size() + " edited columns)");
       this.lastSub = DayCycle.subFor(dayAmount(this.clientTime));
@@ -421,7 +423,7 @@ public class GameClient implements Runnable {
       Packet p;
       while ((p = this.conn.pollClient()) != null) {
          if (p instanceof TileUpdate u) {
-             this.level.setTile(u.x, u.y, u.z, u.type);
+             this.level.setTile(u.x, u.y, u.z, Blocks.stateOf(u.type, u.data));
          } else if (p instanceof PlayerState s) {
              this.player.applyState(s.x, s.y, s.z, s.onGround, s.spectator, s.hp);
             this.destroyProgress = s.breakProgress;
@@ -697,24 +699,40 @@ public class GameClient implements Runnable {
          Log.info("light", "skylight sub " + sub + " (day=" + String.format("%.2f", day) + "), remesh wave");
       }
       GL11.glClearColor(0.01F + (0.5F - 0.01F) * day, 0.02F + (0.8F - 0.02F) * day, 0.06F + (1.0F - 0.06F) * day, 0.0F);
-      float fogScale = 0.15F + 0.85F * day;
+      float fogR = 0.01F + (0.5F - 0.01F) * day;
+      float fogG = 0.02F + (0.8F - 0.02F) * day;
+      float fogB = 0.06F + (1.0F - 0.06F) * day;
+      GL11.glClearColor(fogR, fogG, fogB, 0.0F);
       ((Buffer)this.fogColor).clear();
-      this.fogColor.put(new float[]{0.0549F * fogScale, 0.0431F * fogScale, 0.0392F * fogScale, 1.0F});
+      this.fogColor.put(new float[]{fogR, fogG, fogB, 1.0F});
       ((Buffer)this.fogColor).flip();
       GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
       this.setupCamera(a);
       GL11.glEnable(GL11.GL_CULL_FACE);
       GL11.glEnable(GL11.GL_FOG);
-      GL11.glFogi(GL11.GL_FOG_MODE, GL11.GL_EXP);
-       GL11.glFogf(GL11.GL_FOG_DENSITY, Config.FOG_DENSITY);
+      GL11.glFogi(GL11.GL_FOG_MODE, GL11.GL_LINEAR);
+      float fogEnd = (Config.VIEW_RADIUS + 1) * 16.0F;
+      GL11.glFogf(GL11.GL_FOG_START, fogEnd * 0.25F);
+      GL11.glFogf(GL11.GL_FOG_END, fogEnd);
       GL11.glFog(GL11.GL_FOG_COLOR, this.fogColor);
+      if (this.level.getTile(MathHelper.floor(this.player.x),
+         MathHelper.floor(this.player.bb.y0 + 1.62F),
+         MathHelper.floor(this.player.z)) == Blocks.WATER_ID) {
+         GL11.glFogf(GL11.GL_FOG_START, 0.0F);
+         GL11.glFogf(GL11.GL_FOG_END, 14.0F);
+         ((Buffer)this.fogColor).clear();
+         this.fogColor.put(new float[]{0.03F, 0.05F, 0.35F, 1.0F});
+         ((Buffer)this.fogColor).flip();
+         GL11.glFog(GL11.GL_FOG_COLOR, this.fogColor);
+      }
       GL11.glDisable(GL11.GL_FOG);
 
-      this.levelRenderer.render(this.player.x, this.player.z, this.fullBright, 0);
       if (!this.fullBright) {
          GL11.glEnable(GL11.GL_FOG);
       }
+      this.levelRenderer.render(this.player.x, this.player.z, this.fullBright, 0);
       this.levelRenderer.render(this.player.x, this.player.z, this.fullBright, 1);
+      this.levelRenderer.render(this.player.x, this.player.z, this.fullBright, 2);
       GL11.glDisable(GL11.GL_TEXTURE_2D);
       long r2 = System.nanoTime();
 
@@ -772,13 +790,13 @@ public class GameClient implements Runnable {
          }
       } catch (Throwable t) {
       }
-       Log.raw(String.format("[perf] frame avg %.1fms max %.1f (pick %.1f, world %.1f, hit %.1f, part %.1f, over %.1f, gui %.1f, swap %.1f) | chunks %d+%d verts %dk+%dk | upload avg %.1fms x%d submit %d | heap %dMB gc +%dcoll/+%dms | meshq %d @%d,%d",
+       Log.raw(String.format("[perf] frame avg %.1fms max %.1f (pick %.1f, world %.1f, hit %.1f, part %.1f, over %.1f, gui %.1f, swap %.1f) | chunks %d+%d+%d verts %dk+%dk+%dk | upload avg %.1fms x%d submit %d | heap %dMB gc +%dcoll/+%dms | meshq %d @%d,%d",
          this.perfTotalNs / n / 1000000.0, this.perfMaxNs / 1000000.0,
          this.perfPickNs / n / 1000000.0, this.perfWorldNs / n / 1000000.0,
          this.perfHitNs / n / 1000000.0, this.perfPartNs / n / 1000000.0, this.perfOverNs / n / 1000000.0,
          this.perfGuiNs / n / 1000000.0, this.perfSwapNs / n / 1000000.0,
-         this.levelRenderer.drawn0, this.levelRenderer.drawn1,
-         this.levelRenderer.verts0 / 1000, this.levelRenderer.verts1 / 1000,
+         this.levelRenderer.drawn0, this.levelRenderer.drawn1, this.levelRenderer.drawn2,
+         this.levelRenderer.verts0 / 1000, this.levelRenderer.verts1 / 1000, this.levelRenderer.verts2 / 1000,
          Chunk.updates > 0 ? Chunk.uploadNs / (double)Chunk.updates / 1000000.0 : 0.0, Chunk.updates, this.levelRenderer.submitted,
          heapUsedMb, gcCount - this.perfGcCount, gcMs - this.perfGcMs,
          this.levelRenderer.meshQueueDepth(),
@@ -798,8 +816,10 @@ public class GameClient implements Runnable {
       this.perfGcMs = gcMs;
       this.levelRenderer.drawn0 = 0;
       this.levelRenderer.drawn1 = 0;
+      this.levelRenderer.drawn2 = 0;
       this.levelRenderer.verts0 = 0;
       this.levelRenderer.verts1 = 0;
+      this.levelRenderer.verts2 = 0;
       this.levelRenderer.submitted = 0;
    }
 }

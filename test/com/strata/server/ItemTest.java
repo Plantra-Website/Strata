@@ -22,9 +22,11 @@ public class ItemTest {
    }
 
    static int surface(Level l, int x, int z) {
-      for (int y = 63; y >= 0; y--) {
+      for (int y = l.depth - 1; y >= 0; y--) {
          int t = l.getTile(x, y, z);
-         if (t > 0 && t != 13 && t != 14 && t != 15 && t != 16 && t != 17 && t != 20) return y;
+         if (t > 0 && t != 13 && t != 14 && t != 15 && t != 16 && t != 17 && t != 20 && t != 22
+            && t != 11 && t != 26 && t != 27 && t != 28 && t != 29 && t != 30
+            && t != 33 && t != 34 && t != 35 && t != 40 && t != 41) return y;
       }
       return -1;
    }
@@ -37,7 +39,7 @@ public class ItemTest {
       in.breakY = y;
       in.breakZ = z;
       in.breakFace = 1;
-      for (int i = 0; i < 30; i++) {
+      for (int i = 0; i < 400; i++) {
          conn.sendToServer(in);
          server.tick();
          Packet p;
@@ -209,7 +211,16 @@ public class ItemTest {
       check(kit != null, "give syncs stock");
       if (kit != null) {
          int[] want = {Blocks.DIRT_ID, Blocks.STONE_ID, Blocks.COBBLE_ID,
-            Blocks.TORCH_ID, Blocks.LEAF_ID, Blocks.SAND_ID, Blocks.PLANKS_ID};
+            Blocks.TORCH_ID, Blocks.LEAF_ID, Blocks.SAND_ID, Blocks.PLANKS_ID,
+            Blocks.WATER_ID, Blocks.SANDSTONE_ID, Blocks.ICE_ID, Blocks.MYCELIUM_ID,
+            Blocks.CACTUS_ID, Blocks.REED_ID, Blocks.DEADBUSH_ID,
+            Blocks.MUSHROOM_BROWN_ID, Blocks.MUSHROOM_RED_ID, Blocks.CLAY_ID,
+            Blocks.PUMPKIN_ID, Blocks.VINE_ID, Blocks.LILYPAD_ID,
+            Blocks.SNOW_LAYER_ID, Blocks.SNOW_BLOCK_ID, Blocks.BIRCH_LOG_ID,
+            Blocks.SPRUCE_LOG_ID, Blocks.BIRCH_LEAVES_ID, Blocks.SPRUCE_LEAVES_ID,
+            Blocks.BIRCH_SAPLING_ID, Blocks.SPRUCE_SAPLING_ID, Blocks.MOSSY_COBBLE_ID,
+            Blocks.REDSTONE_ORE_ID, Blocks.ROSE_ID, Blocks.DANDELION_ID,
+            Blocks.TALL_GRASS_ID, Blocks.SAPLING_ID};
          for (int id : want) {
             boolean found = false;
             for (int i = 0; i < Inventory.SLOTS; i++) {
@@ -221,7 +232,7 @@ public class ItemTest {
          for (int i = 0; i < Inventory.SLOTS; i++) {
             if (kit.blocks[i] != 0 && kit.counts[i] > 0) filled++;
          }
-         check(filled == 7, "give replaces stock (" + filled + " filled)");
+         check(filled == 34, "give replaces stock (" + filled + " filled)");
       }
 
       if (failures == 0) System.out.println("ITEM PASS");

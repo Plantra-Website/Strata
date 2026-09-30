@@ -32,7 +32,7 @@ public class Raycaster {
       double t = 0.0;
       while (t <= maxDist && t <= bestT) {
          int tile = level.getTile(x, y, z);
-         if (tile > 0 && !inside) {
+         if (tile > 0 && !Blocks.isFluid(tile) && !inside) {
             Block block = Blocks.byId(tile);
             if (block != null) {
                AABB box = block.pickBox(x, y, z);
@@ -43,7 +43,7 @@ public class Raycaster {
                }
             }
          }
-         if (tile <= 0) {
+         if (tile <= 0 || Blocks.isFluid(tile)) {
             inside = false;
          }
          if (tMaxX < tMaxY && tMaxX < tMaxZ) {

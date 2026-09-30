@@ -1,12 +1,15 @@
 package com.strata.blocks;
 
 import com.strata.core.AABB;
+import java.util.function.IntSupplier;
 
 public abstract class Block {
    public final int id;
    public final int texture;
    public final boolean solid;
    public final int light;
+   public int hardness = 25;
+   public IntSupplier drop;
    public final BlockState state;
 
    protected Block(int id, int texture, boolean solid, int light) {
@@ -14,7 +17,24 @@ public abstract class Block {
       this.texture = texture;
       this.solid = solid;
       this.light = light;
+      this.drop = () -> this.id;
       this.state = BlockState.of(this);
+   }
+
+   public Block hardness(int ticks) {
+      this.hardness = ticks;
+      return this;
+   }
+
+   public Block drops(int id) {
+      int fixed = id;
+      this.drop = () -> fixed;
+      return this;
+   }
+
+   public Block drops(IntSupplier roll) {
+      this.drop = roll;
+      return this;
    }
 
    public final BlockState defaultState() {
@@ -33,6 +53,9 @@ public abstract class Block {
 
    public boolean needsSupport() {
       return false;
+   }
+   public boolean canStay(BlockView level, int x, int y, int z) {
+      return true;
    }
    public void render(MeshBuilder builder, BlockView view, int layer, int x, int y, int z, BlockState state) {
       this.render(builder, view, layer, x, y, z);

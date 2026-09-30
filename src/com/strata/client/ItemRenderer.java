@@ -26,7 +26,7 @@ public class ItemRenderer {
 
    public void spawn(int entityId, float x, float y, float z, float xd, float yd, float zd, int blockId) {
       ItemEntity e = new ItemEntity(entityId, blockId, x, y, z, xd, yd, zd);
-      float br = this.level.getBrightness(MathHelper.floor(x), MathHelper.floor(y), MathHelper.floor(z));
+      float br = this.brightnessAt(x, y, z);
       e.r = br;
       e.g = br;
       e.b = br;
@@ -117,7 +117,15 @@ public class ItemRenderer {
    public void tick(float px, float py, float pz) {
       for (ItemEntity e : this.items.values()) {
          e.tick(this.level, px, py, pz);
+         float br = this.brightnessAt(e.x, e.y, e.z);
+         e.r = br;
+         e.g = br;
+         e.b = br;
       }
+   }
+
+   private float brightnessAt(float x, float y, float z) {
+      return this.level.getBrightness(MathHelper.floor(x), MathHelper.floor(y), MathHelper.floor(z));
    }
 
    public void render(Player player, float a) {

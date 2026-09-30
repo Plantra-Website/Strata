@@ -26,7 +26,17 @@ public class BlocksTest {
       check(Blocks.particleTile(0) == 0, "air particle tile 0");
       check(Blocks.particleTile(999) == 0, "unknown particle tile 0");
       check(Blocks.isSolid(Blocks.STONE_ID), "stone solid");
-      check(Blocks.isSolid(Blocks.LAVA_ID), "lava solid (walkable, no fluids yet)");
+      check(Blocks.isSolid(Blocks.LAVA_ID), "lava solid (walkable crust)");
+      check(!Blocks.isSolid(Blocks.WATER_ID), "water walk-through (swim)");
+      check(Blocks.isSolid(Blocks.SANDSTONE_ID), "sandstone solid");
+      check(Blocks.isSolid(Blocks.ICE_ID), "ice solid (opaque pass)");
+      check(!Blocks.isSolid(Blocks.VINE_ID), "vine walk-through");
+      check(!Blocks.isSolid(Blocks.LILYPAD_ID), "lily walk-through");
+      check(!Blocks.isSolid(Blocks.SNOW_LAYER_ID), "snow layer walk-through");
+      check(Blocks.isSolid(Blocks.SNOW_BLOCK_ID), "snow block solid");
+      check(Blocks.isSolid(Blocks.PUMPKIN_ID), "pumpkin solid");
+      check(Blocks.isFluid(Blocks.LAVA_ID) && Blocks.isFluid(Blocks.WATER_ID), "lava+water fluids");
+      check(!Blocks.isFluid(Blocks.STONE_ID), "stone not fluid");
       check(Blocks.isSolid(Blocks.GRAVEL_ID), "gravel solid (static until tick queue)");
       check(!Blocks.isSolid(Blocks.TORCH_ID), "torch walk-through");
       check(!Blocks.isSolid(Blocks.SAPLING_ID), "sapling walk-through");
@@ -39,6 +49,7 @@ public class BlocksTest {
       check(!Blocks.blocksLight(Blocks.TORCH_ID), "torch passes light");
       check(!Blocks.blocksLight(0), "air passes light");
       check(Blocks.emission(Blocks.LAVA_ID) == 15, "lava emits 15");
+      check(Blocks.emission(Blocks.WATER_ID) == 0, "water dark");
       check(Blocks.emission(Blocks.TORCH_ID) == 14, "torch emits 14");
       check(Blocks.emission(Blocks.GRASS_ID) == 0, "grass dark");
       check(Blocks.emission(0) == 0, "air dark");

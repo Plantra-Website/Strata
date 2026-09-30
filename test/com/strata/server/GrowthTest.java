@@ -63,10 +63,93 @@ public class GrowthTest {
 
       int nx = -30, nz = -30;
       int nh = ItemTest.surface(s.level(), nx, nz);
+      s.level().setTile(nx, nh, nz, Blocks.DIRT_ID);
+      for (int i = 1; i <= 7; i++) {
+         s.level().setTile(nx, nh + i, nz, 0);
+      }
       s.level().setTile(nx, nh + 1, nz, Blocks.SAPLING_ID);
       s.level().scheduleTick(nx, nh + 1, nz, 5);
       ItemTest.drain(s, conn, 20);
       check(topWood(s, nx, nh + 1, nz) >= nh + 4, "negative-coord sapling grows");
+
+      int ex = x + 18;
+      int eh = ItemTest.surface(s.level(), ex, z);
+      s.level().setTile(ex, eh, z, Blocks.DIRT_ID);
+      for (int i = 1; i <= 10; i++) {
+         s.level().setTile(ex, eh + i, z, 0);
+      }
+      s.level().setTile(ex, eh + 1, z, Blocks.BIRCH_SAPLING_ID);
+      s.level().scheduleTick(ex, eh + 1, z, 5);
+      ItemTest.drain(s, conn, 20);
+      boolean birchWood = false;
+      for (int i = 0; i < 10; i++) {
+         if (s.level().getTile(ex, eh + 1 + i, z) == Blocks.BIRCH_LOG_ID) {
+            birchWood = true;
+         }
+      }
+      check(birchWood, "birch sapling grows birch wood");
+      int gx = x + 24;
+      int gh = ItemTest.surface(s.level(), gx, z);
+      s.level().setTile(gx, gh, z, Blocks.DIRT_ID);
+      for (int i = 1; i <= 10; i++) {
+         s.level().setTile(gx, gh + i, z, 0);
+      }
+      s.level().setTile(gx, gh + 1, z, Blocks.SPRUCE_SAPLING_ID);
+      s.level().scheduleTick(gx, gh + 1, z, 5);
+      ItemTest.drain(s, conn, 20);
+      boolean spruceWood = false;
+      for (int i = 0; i < 10; i++) {
+         if (s.level().getTile(gx, gh + 1 + i, z) == Blocks.SPRUCE_LOG_ID) {
+            spruceWood = true;
+         }
+      }
+      check(spruceWood, "spruce sapling grows spruce wood");
+
+      int px = x + 30;
+      int ph = ItemTest.surface(s.level(), px, z);
+      s.level().setTile(px, ph, z, Blocks.SAND_ID);
+      s.level().setTile(px + 1, ph, z, Blocks.WATER_ID);
+      for (int i = 1; i <= 6; i++) {
+         s.level().setTile(px, ph + i, z, 0);
+      }
+      s.level().setTile(px, ph + 1, z, Blocks.REED_ID);
+      s.level().scheduleTick(px, ph + 1, z, 5);
+      ItemTest.drain(s, conn, 20);
+      check(s.level().getTile(px, ph + 1, z) == Blocks.REED_ID, "reed cutting takes");
+      check(s.level().getData(px, ph + 1, z) > 0, "reed stages (data counts)");
+      s.level().setTile(px, ph + 1, z, Blocks.stateOf(Blocks.byId(Blocks.REED_ID), 15));
+      s.level().scheduleTick(px, ph + 1, z, 5);
+      ItemTest.drain(s, conn, 20);
+      check(s.level().getTile(px, ph + 2, z) == Blocks.REED_ID, "ripe reed grows up");
+      check(s.level().getData(px, ph + 1, z) == 0, "grown reed resets its counter");
+
+      int qx = x + 36;
+      int qh = ItemTest.surface(s.level(), qx, z);
+      s.level().setTile(qx, qh, z, Blocks.SAND_ID);
+      for (int dx = -1; dx <= 1; dx++) {
+         for (int dz = -1; dz <= 1; dz++) {
+            if (dx == 0 && dz == 0) {
+               continue;
+            }
+            s.level().setTile(qx + dx, qh + 1, z + dz, 0);
+         }
+      }
+      for (int i = 1; i <= 6; i++) {
+         s.level().setTile(qx, qh + i, z, 0);
+      }
+      s.level().setTile(qx, qh + 1, z, Blocks.stateOf(Blocks.byId(Blocks.CACTUS_ID), 15));
+      s.level().scheduleTick(qx, qh + 1, z, 5);
+      ItemTest.drain(s, conn, 20);
+      check(s.level().getTile(qx, qh + 2, z) == Blocks.CACTUS_ID, "ripe cactus grows up");
+      s.level().setTile(qx, qh + 3, z, Blocks.CACTUS_ID);
+      s.level().setTile(qx, qh + 1, z, Blocks.stateOf(Blocks.byId(Blocks.CACTUS_ID), 15));
+      s.level().setTile(qx, qh + 2, z, Blocks.stateOf(Blocks.byId(Blocks.CACTUS_ID), 15));
+      s.level().setTile(qx, qh + 3, z, Blocks.stateOf(Blocks.byId(Blocks.CACTUS_ID), 15));
+      s.level().scheduleTick(qx, qh + 1, z, 5);
+      s.level().scheduleTick(qx, qh + 2, z, 5);
+      s.level().scheduleTick(qx, qh + 3, z, 5);
+      ItemTest.drain(s, conn, com.strata.world.Level.GROWTH_TICKS + 40);
+      check(s.level().getTile(qx, qh + 4, z) == 0, "cactus stops at 3 tall");
 
       if (failures == 0) System.out.println("GROWTH PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }

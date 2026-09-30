@@ -42,8 +42,11 @@ public class LevelRenderer implements LevelListener {
    private final MeshBuilder crackScratch = new MeshBuilder();
    public int drawn0;
    public int drawn1;
+   public int drawn2;
    public int verts0;
    public int verts1;
+   public int verts2;
+   public int renderedLastFrame;
    public int submitted;
 
     private record MeshWorker(BlockingQueue<Chunk> queue, String name) implements Runnable {
@@ -84,26 +87,27 @@ public class LevelRenderer implements LevelListener {
        return this.meshQueue.size();
     }
 
-    public String census() {
-       int total = 0, dirty = 0, inflight = 0, ready = 0, drawn = 0;
-       for (Chunk c : this.chunks.values()) {
-          total++;
-          if (c.dirty) {
-             dirty++;
-          }
-          synchronized (c) {
-             if (c.meshState == 1) {
-                inflight++;
-             } else if (c.meshState == 2) {
-                ready++;
-             }
-          }
-          if (c.vertCount(0) + c.vertCount(1) > 0) {
-             drawn++;
-          }
-       }
-       return "chunks=" + total + " dirty=" + dirty + " inflight=" + inflight + " ready=" + ready + " drawn=" + drawn;
-    }
+   public String census() {
+      int total = 0, dirty = 0, inflight = 0, ready = 0, built = 0;
+      for (Chunk c : this.chunks.values()) {
+         total++;
+         if (c.dirty) {
+            dirty++;
+         }
+         synchronized (c) {
+            if (c.meshState == 1) {
+               inflight++;
+            } else if (c.meshState == 2) {
+               ready++;
+            }
+         }
+         if (c.vertCount(0) + c.vertCount(1) + c.vertCount(2) > 0) {
+            built++;
+         }
+      }
+      return "chunks=" + total + " dirty=" + dirty + " inflight=" + inflight + " ready=" + ready + " built=" + built
+         + " rendered=" + this.renderedLastFrame;
+   }
 
    public LevelRenderer(Level level) {
       this.level = level;
@@ -294,17 +298,35 @@ public class LevelRenderer implements LevelListener {
          GL11.glEnableClientState(GL11.GL_COLOR_ARRAY);
       }
 
+      int passed = 0;
+      boolean water = layer == 2;
+      if (water) {
+         GL11.glEnable(GL11.GL_BLEND);
+         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+      }
       for (Chunk c : this.chunks.values()) {
          if (frustum.cubeInFrustum(c.aabb)) {
+            passed++;
             if (layer == 0) {
                this.drawn0++;
                this.verts0 += c.vertCount(0);
-            } else {
+            } else if (layer == 1) {
                this.drawn1++;
                this.verts1 += c.vertCount(1);
+            } else {
+               this.drawn2++;
+               this.verts2 += c.vertCount(2);
             }
             c.render(layer, fullBright);
          }
+      }
+      if (water) {
+         GL11.glDisable(GL11.GL_BLEND);
+      }
+      if (layer == 0) {
+         this.renderedLastFrame = passed;
+      } else {
+         this.renderedLastFrame += passed;
       }
 
       GL11.glDisableClientState(GL11.GL_VERTEX_ARRAY);

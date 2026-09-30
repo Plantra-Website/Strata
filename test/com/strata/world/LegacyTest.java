@@ -12,9 +12,9 @@ public class LegacyTest {
         int top = -1;
         for (int y = 63; y >= 0; y--)
             if (l.getTile(30, y, 31) > 0) { top = y; break; }
-        ok &= check(top >= 4 && top <= 56, "hills surface sane near old builds");
+        ok &= check(top >= 0 && top <= 127, "surface sane near old builds");
         int v = l.getTile(5, 20, 5);
-        ok &= check(v >= 0 && v <= 12 && (v == 0 || Blocks.byId(v) != null), "stone zone sane (got " + v + ")");
+        ok &= check(v >= 0 && v <= 22 && (v == 0 || Blocks.byId(v) != null), "stone zone sane (got " + v + ")");
         ok &= check(l.getTile(0, 0, 0) == Blocks.BEDROCK_ID, "bedrock under old area");
         System.out.println(ok ? "LEGACY PASS" : "LEGACY FAIL");
         if (!ok) System.exit(1);

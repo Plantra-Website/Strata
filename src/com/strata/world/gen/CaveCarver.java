@@ -178,9 +178,8 @@ public class CaveCarver {
             if (single || rand.nextInt(4) != 0) {
                double dx = x - originX;
                double dz = z - originZ;
-               double remaining = maxSteps - step;
-               double range = width + 2.0F + 16.0F;
-               if (dx * dx + dz * dz - remaining * remaining > range * range) {
+               double bound = maxSteps + width + 2.0F + 16.0F;
+               if (dx * dx + dz * dz > bound * bound) {
                   return;
                }
                double reach = radius * 1.25 + 1.0;
@@ -189,6 +188,9 @@ public class CaveCarver {
                if (x + reach >= regionX0 && x - reach < regionX0 + REGION * 16
                   && z + reach >= regionZ0 && z - reach < regionZ0 + REGION * 16) {
                   this.carveNode(x, y, z, radius, vRadius);
+               }
+               if (single) {
+                  break;
                }
             }
          }

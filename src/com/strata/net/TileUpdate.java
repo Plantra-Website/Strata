@@ -9,6 +9,7 @@ public class TileUpdate extends Packet {
    public int y;
    public int z;
    public int type;
+   public int data;
 
    static {
       Packet.register(11, TileUpdate::new);
@@ -22,6 +23,7 @@ public class TileUpdate extends Packet {
       out.writeInt(this.y);
       out.writeInt(this.z);
       out.writeByte(this.type);
+      out.writeByte(this.data);
    }
 
    @Override
@@ -30,6 +32,7 @@ public class TileUpdate extends Packet {
       this.y = in.readInt();
       this.z = in.readInt();
       this.type = in.readByte() & 0xFF;
+      this.data = in.readByte() & 0xFF;
    }
 }
 

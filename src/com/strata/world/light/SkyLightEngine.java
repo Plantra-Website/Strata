@@ -1,5 +1,6 @@
 package com.strata.world.light;
 
+import com.strata.core.Dirs;
 import com.strata.core.Profiler;
 import java.util.ArrayDeque;
 import java.util.HashSet;
@@ -11,7 +12,6 @@ public class SkyLightEngine {
    private final ConcurrentHashMap<Long, byte[]> levels = new ConcurrentHashMap<>();
    private final ConcurrentHashMap<Long, Integer> heights = new ConcurrentHashMap<>();
    private final Set<Long> seeded = ConcurrentHashMap.newKeySet();
-   private static final int[][] DIRS = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
 
    public SkyLightEngine(LightWorld world) {
       this.world = world;
@@ -194,7 +194,7 @@ public class SkyLightEngine {
             fresh = 15;
          } else {
             int best = 0;
-            for (int[] d : DIRS) {
+            for (int[] d : Dirs.DIRS) {
                int nl = this.readCell(x + d[0], y + d[1], z + d[2]) - 1;
                if (nl > best) {
                   best = nl;
@@ -223,7 +223,7 @@ public class SkyLightEngine {
          if (nl <= 0) {
             continue;
          }
-         for (int[] d : DIRS) {
+         for (int[] d : Dirs.DIRS) {
             int nx = c[0] + d[0];
             int ny = c[1] + d[1];
             int nz = c[2] + d[2];
@@ -248,7 +248,7 @@ public class SkyLightEngine {
       queue.add(new int[]{x, y, z, oldLevel});
       while (!queue.isEmpty()) {
          int[] c = queue.poll();
-         for (int[] d : DIRS) {
+         for (int[] d : Dirs.DIRS) {
             int nx = c[0] + d[0];
             int ny = c[1] + d[1];
             int nz = c[2] + d[2];

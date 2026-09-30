@@ -37,17 +37,21 @@ public class NetTest {
         check(roundtrip(new SaveGame()) instanceof SaveGame, "save marker");
         check(roundtrip(new SpectateToggle()) instanceof SpectateToggle, "spectate marker");
 
-        TileUpdate tu = new TileUpdate();
-        tu.x = -7; tu.y = 63; tu.z = 8; tu.type = 12;
-        TileUpdate tu2 = (TileUpdate)roundtrip(tu);
-        check(tu2.x == -7 && tu2.y == 63 && tu2.z == 8 && tu2.type == 12, "tile update");
+       TileUpdate tu = new TileUpdate();
+       tu.x = -7; tu.y = 63; tu.z = 8; tu.type = 12; tu.data = 3;
+       TileUpdate tu2 = (TileUpdate)roundtrip(tu);
+       check(tu2.x == -7 && tu2.y == 63 && tu2.z == 8 && tu2.type == 12 && tu2.data == 3, "tile update");
 
-        BulkTiles bulk = new BulkTiles();
-        bulk.columns = new HashMap<>();
-        bulk.columns.put(123L, new byte[64]);
-        bulk.columns.get(123L)[5] = 7;
-        BulkTiles bulk2 = (BulkTiles)roundtrip(bulk);
-        check(bulk2.columns.size() == 1 && bulk2.columns.get(123L)[5] == 7, "bulk");
+       BulkTiles bulk = new BulkTiles();
+       bulk.columns = new HashMap<>();
+       bulk.columns.put(123L, new byte[64]);
+       bulk.columns.get(123L)[5] = 7;
+       bulk.datas = new HashMap<>();
+       bulk.datas.put(123L, new byte[64]);
+       bulk.datas.get(123L)[5] = 2;
+       BulkTiles bulk2 = (BulkTiles)roundtrip(bulk);
+       check(bulk2.columns.size() == 1 && bulk2.columns.get(123L)[5] == 7, "bulk");
+       check(bulk2.datas.size() == 1 && bulk2.datas.get(123L)[5] == 2, "bulk datas");
 
         PlayerState ps = new PlayerState();
         ps.x = 1.5f; ps.y = 2.5f; ps.z = -3.5f; ps.yaw = 3.0f; ps.pitch = 0.5f;
@@ -156,6 +160,31 @@ public class NetTest {
         mirror.applyBulk(snap.columns);
         check(mirror.getTile(5, 60, 5) == 12, "mirror applies bulk");
         System.out.println("sync ok");
+
+        int nx = 60, nz = 60;
+        int nh = 0;
+        for (int y = 120; y >= 0; y--) {
+           int t = server.level().getTile(nx + 1, y, nz + 1);
+           if (t > 0 && com.strata.blocks.Blocks.isSolid(t)) { nh = y; break; }
+        }
+        for (int dx = 55; dx <= 67; dx++) {
+           for (int dz = 55; dz <= 67; dz++) {
+              server.level().setTile(dx, nh + 1, dz, Blocks.DIRT_ID);
+              server.level().setTile(dx, nh + 2, dz, 0);
+           }
+        }
+        server.level().setTile(61, nh + 2, nz + 1, Blocks.LAVA_ID);
+        server.level().scheduleTick(61, nh + 2, nz + 1, Level.LAVA_TICKS);
+        for (int i = 0; i < Level.LAVA_TICKS + 30; i++) {
+           server.tick();
+        }
+        check(server.level().getTile(62, nh + 2, nz + 1) == Blocks.LAVA_ID, "server spread for mirror test");
+        check(server.level().getData(62, nh + 2, nz + 1) == 2, "server flow level 2");
+        BulkTiles snap2 = server.snapshot();
+        Level mirror2 = new Level(Level.WORLD_DEPTH, false);
+        mirror2.applyBulk(snap2.columns, snap2.datas);
+        check(mirror2.getTile(62, nh + 2, nz + 1) == Blocks.LAVA_ID, "mirror applies flow tile");
+        check(mirror2.getData(62, nh + 2, nz + 1) == 2, "mirror applies flow level");
 
         conn.sendToServer(new SpectateToggle());
         server.tick();

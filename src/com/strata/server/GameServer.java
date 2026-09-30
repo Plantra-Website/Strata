@@ -3,6 +3,8 @@ package com.strata.server;
 import com.strata.HitResult;
 import com.strata.blocks.Block;
 import com.strata.blocks.Blocks;
+import com.strata.blocks.Fluid;
+import com.strata.blocks.TorchBlock;
 import com.strata.core.AABB;
 import com.strata.core.Config;
 import com.strata.core.DayCycle;
@@ -72,7 +74,7 @@ public class GameServer implements LevelListener {
        this.voidWorld = voidWorld;
        this.packName = meta.pack == null ? "" : meta.pack;
        Rng.reseed(seed);
-       this.level = new Level(64, true, new TerrainGenerator(seed, 64, voidWorld), worldDir);
+       this.level = new Level(Level.WORLD_DEPTH, true, new TerrainGenerator(seed, Level.WORLD_DEPTH, voidWorld), worldDir);
        this.level.loadAllRegions();
        this.level.seedEmitters();
        this.timeOfDay = seedOverride != null && seedOverride != meta.seed ? 0L : meta.time;
@@ -143,6 +145,7 @@ public class GameServer implements LevelListener {
    public BulkTiles snapshot() {
       BulkTiles bulk = new BulkTiles();
       bulk.columns = this.level.snapshotEdits();
+      bulk.datas = this.level.snapshotData();
       return bulk;
    }
 
@@ -196,12 +199,26 @@ public class GameServer implements LevelListener {
             this.inventory.clear();
             this.held.clear();
             int[] kit = {Blocks.DIRT_ID, Blocks.STONE_ID, Blocks.COBBLE_ID,
-               Blocks.TORCH_ID, Blocks.LEAF_ID, Blocks.SAND_ID, Blocks.PLANKS_ID};
+               Blocks.TORCH_ID, Blocks.LEAF_ID, Blocks.SAND_ID, Blocks.PLANKS_ID,
+               Blocks.WATER_ID};
             for (int i = 0; i < kit.length; i++) {
                this.inventory.slots[i] = new ItemStack(kit[i], ItemStack.MAX);
             }
+            int[] kitExtra = {Blocks.SANDSTONE_ID, Blocks.ICE_ID, Blocks.MYCELIUM_ID,
+               Blocks.CACTUS_ID, Blocks.REED_ID, Blocks.DEADBUSH_ID,
+               Blocks.MUSHROOM_BROWN_ID, Blocks.MUSHROOM_RED_ID, Blocks.CLAY_ID,
+               Blocks.PUMPKIN_ID, Blocks.VINE_ID, Blocks.LILYPAD_ID,
+               Blocks.SNOW_LAYER_ID, Blocks.SNOW_BLOCK_ID, Blocks.BIRCH_LOG_ID,
+               Blocks.SPRUCE_LOG_ID, Blocks.BIRCH_LEAVES_ID, Blocks.SPRUCE_LEAVES_ID,
+               Blocks.BIRCH_SAPLING_ID, Blocks.SPRUCE_SAPLING_ID, Blocks.MOSSY_COBBLE_ID,
+               Blocks.REDSTONE_ORE_ID, Blocks.ROSE_ID, Blocks.DANDELION_ID,
+               Blocks.TALL_GRASS_ID, Blocks.SAPLING_ID};
+            int slot = Inventory.HOTBAR;
+            for (int i = 0; i < kitExtra.length && slot < Inventory.SLOTS; i++) {
+               this.inventory.slots[slot++] = new ItemStack(kitExtra[i], ItemStack.MAX);
+            }
             this.sendInv();
-            Log.info("debug", "gave builder kit (hotbar replaced: dirt/stone/cobble/torch/leaves/sand/planks x64)");
+            Log.info("debug", "gave builder kit (hotbar replaced: dirt/stone/cobble/torch/leaves/sand/planks/water x64)");
           } else if (p instanceof SlotClick) {
              this.inventory.applyClick(((SlotClick)p).slot, this.held);
              this.sendInv();
@@ -275,8 +292,8 @@ public class GameServer implements LevelListener {
                int brokenId = tileId;
                this.breakBlock(hit.x, hit.y, hit.z, brokenId);
                this.settleAbove(hit.x, hit.y, hit.z);
-               this.popUnsupported(hit.x, hit.y + 1, hit.z);
-               this.wakeLava(hit.x, hit.y, hit.z);
+               this.popUnsupported(hit.x, hit.y, hit.z);
+               this.wakeFluid(hit.x, hit.y, hit.z);
                this.destroyProgress = 0.0F;
                this.prevHitResult = null;
             }
@@ -299,10 +316,18 @@ public class GameServer implements LevelListener {
    }
 
    private void popUnsupported(int x, int y, int z) {
+      this.popColumn(x, y, z);
+      this.popColumn(x + 1, y, z);
+      this.popColumn(x - 1, y, z);
+      this.popColumn(x, y, z + 1);
+      this.popColumn(x, y, z - 1);
+   }
+
+   private void popColumn(int x, int y, int z) {
       while (y < this.level.depth) {
          int id = this.level.getTile(x, y, z);
          Block b = id > 0 ? Blocks.byId(id) : null;
-         if (b != null && b.needsSupport() && !this.level.isSolidTile(x, y - 1, z)) {
+         if (b != null && !b.canStay(this.level, x, y, z)) {
             this.breakBlock(x, y, z, id);
             this.settleAbove(x, y, z);
          }
@@ -310,32 +335,28 @@ public class GameServer implements LevelListener {
       }
    }
 
-   private void wakeLava(int x, int y, int z) {
-      if (this.level.getTile(x + 1, y, z) == Blocks.LAVA_ID) {
-         this.level.scheduleTick(x + 1, y, z, Level.LAVA_TICKS);
-      }
-      if (this.level.getTile(x - 1, y, z) == Blocks.LAVA_ID) {
-         this.level.scheduleTick(x - 1, y, z, Level.LAVA_TICKS);
-      }
-      if (this.level.getTile(x, y + 1, z) == Blocks.LAVA_ID) {
-         this.level.scheduleTick(x, y + 1, z, Level.LAVA_TICKS);
-      }
-      if (this.level.getTile(x, y - 1, z) == Blocks.LAVA_ID) {
-         this.level.scheduleTick(x, y - 1, z, Level.LAVA_TICKS);
-      }
-      if (this.level.getTile(x, y, z + 1) == Blocks.LAVA_ID) {
-         this.level.scheduleTick(x, y, z + 1, Level.LAVA_TICKS);
-      }
-      if (this.level.getTile(x, y, z - 1) == Blocks.LAVA_ID) {
-         this.level.scheduleTick(x, y, z - 1, Level.LAVA_TICKS);
+   private void wakeFluid(int x, int y, int z) {
+      this.wakeFluidCell(x + 1, y, z);
+      this.wakeFluidCell(x - 1, y, z);
+      this.wakeFluidCell(x, y + 1, z);
+      this.wakeFluidCell(x, y - 1, z);
+      this.wakeFluidCell(x, y, z + 1);
+      this.wakeFluidCell(x, y, z - 1);
+   }
+
+   private void wakeFluidCell(int x, int y, int z) {
+      int id = this.level.getTile(x, y, z);
+      if (Blocks.isFluid(id)) {
+         this.level.scheduleTick(x, y, z, Fluid.of(id).ticks);
       }
    }
 
    private void settleAbove(int x, int y, int z) {
       for (int yy = y; yy < this.level.depth; yy++) {
          int id = this.level.getTile(x, yy, z);
-         if ((id == Blocks.SAND_ID || id == Blocks.GRAVEL_ID)
-            && yy > 0 && this.level.getTile(x, yy - 1, z) == 0) {
+         int below = yy > 0 ? this.level.getTile(x, yy - 1, z) : 1;
+         if (Blocks.isFalling(id)
+            && (below == 0 || Blocks.isFluid(below) || below == Blocks.SNOW_LAYER_ID)) {
             this.spawnFalling(x, yy, z, id);
          }
       }
@@ -343,6 +364,7 @@ public class GameServer implements LevelListener {
 
    private void spawnFalling(int x, int y, int z, int id) {
       this.level.setTile(x, y, z, 0);
+      this.wakeFluid(x, y, z);
       FallingBlock e = new FallingBlock(this.level, this.nextEntityId++, id, x + 0.5F, y + 0.5F, z + 0.5F);
       this.falling.add(e);
       FallingSpawn s = new FallingSpawn();
@@ -371,7 +393,7 @@ public class GameServer implements LevelListener {
          this.sendFallRemove(e);
          int fx = e.landX(), fy = e.landY(), fz = e.landZ();
          int occupant = this.level.getTile(fx, fy, fz);
-         if (occupant > 0) {
+         if (occupant > 0 && !Blocks.isFluid(occupant)) {
             Block b = Blocks.byId(occupant);
             if (b != null && b.needsSupport()) {
                this.breakBlock(fx, fy, fz, occupant);
@@ -381,6 +403,7 @@ public class GameServer implements LevelListener {
             }
          }
          this.level.setTile(fx, fy, fz, e.blockId);
+         this.wakeFluid(fx, fy, fz);
       }
    }
 
@@ -438,7 +461,16 @@ public class GameServer implements LevelListener {
       this.conn.sendToClient(r);
    }
 
-   private void handlePlace(PlaceBlock p) {
+    private boolean payStock(int blockId) {
+       for (int i = 0; i < Inventory.SLOTS; i++) {
+          if (!this.inventory.slots[i].isEmpty() && this.inventory.slots[i].blockId == blockId) {
+             return this.inventory.consume(i, 1) == 1;
+          }
+       }
+       return false;
+    }
+
+    private void handlePlace(PlaceBlock p) {
       int x = p.x;
       int y = p.y;
       int z = p.z;
@@ -453,27 +485,62 @@ public class GameServer implements LevelListener {
       if (blockAABB.intersects(this.player.bb)) {
          return;
       }
-      Block placing = Blocks.byId(p.blockId);
-      if (placing != null && placing.needsSupport() && !this.level.isSolidTile(x, y - 1, z)) {
-         return;
-      }
-      boolean paid = false;
-      for (int i = 0; i < Inventory.SLOTS; i++) {
-         if (!this.inventory.slots[i].isEmpty() && this.inventory.slots[i].blockId == p.blockId) {
-            paid = this.inventory.consume(i, 1) == 1;
-            break;
+      if (p.blockId == Blocks.SNOW_LAYER_ID) {
+         int tx = x, ty = y, tz = z;
+         if (!(this.level.getTile(tx, ty, tz) == Blocks.SNOW_LAYER_ID
+            && (this.level.getData(tx, ty, tz) & 7) < 7)) {
+            tx = p.x;
+            ty = p.y;
+            tz = p.z;
+         }
+         if (this.level.getTile(tx, ty, tz) == Blocks.SNOW_LAYER_ID
+            && (this.level.getData(tx, ty, tz) & 7) < 7) {
+            if (!this.payStock(p.blockId)) {
+               return;
+            }
+            this.level.setTile(tx, ty, tz,
+               Blocks.stateOf(Blocks.byId(p.blockId), (this.level.getData(tx, ty, tz) & 7) + 1));
+            this.settleAbove(tx, ty, tz);
+            this.popUnsupported(tx, ty, tz);
+            this.wakeFluid(tx, ty, tz);
+            this.sendInv();
+            return;
          }
       }
-      if (!paid) {
+      boolean wallTorch = p.blockId == Blocks.TORCH_ID && p.face >= 2 && p.face <= 5;
+      if (p.blockId == Blocks.TORCH_ID && p.face == 0) {
          return;
       }
-      this.level.setTile(x, y, z, p.blockId);
-      if (p.blockId == Blocks.SAPLING_ID) {
+      Block placing = Blocks.byId(p.blockId);
+      if (placing != null) {
+         if (wallTorch) {
+            if (!TorchBlock.wallSolid(this.level, x, y, z, p.face)) {
+               return;
+            }
+         } else if (!placing.canStay(this.level, x, y, z)) {
+            return;
+         }
+      }
+      if (!this.payStock(p.blockId)) {
+         return;
+      }
+      if (wallTorch) {
+         this.level.setTile(x, y, z, Blocks.stateOf(placing, p.face));
+      } else {
+         this.level.setTile(x, y, z, p.blockId);
+      }
+      if (Blocks.isSapling(p.blockId)) {
          this.level.scheduleTick(x, y, z, Level.SAPLING_TICKS);
       }
+      if (p.blockId == Blocks.REED_ID || p.blockId == Blocks.CACTUS_ID) {
+         this.level.scheduleTick(x, y, z, Level.GROWTH_TICKS);
+      }
+      if (Blocks.isFluid(p.blockId)) {
+         this.level.scheduleTick(x, y, z, Fluid.of(p.blockId).ticks);
+      }
       this.settleAbove(x, y, z);
-      this.popUnsupported(x, y + 1, z);
-      this.wakeLava(x, y, z);
+      this.popUnsupported(x, y, z);
+      this.wakeFluid(x, y, z);
       this.sendInv();
    }
 
@@ -484,6 +551,7 @@ public class GameServer implements LevelListener {
       update.y = y;
       update.z = z;
       update.type = this.level.getTile(x, y, z);
+      update.data = this.level.getData(x, y, z);
       this.conn.sendToClient(update);
    }
 
