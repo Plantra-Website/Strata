@@ -79,7 +79,7 @@ public class SlipTest {
       System.out.println("stepped=" + peakFeet + " endZ=" + endZ);
       check(endZ > 14.0F, "snowdrift mounts without jumping (z=" + endZ + ")");
       check(peakFeet > 91.4F, "feet rose onto the drift (" + peakFeet + ")");
-      check(endZ < 29.0F, "full wall still blocks (z=" + endZ + ")");
+      check(endZ < 30.0F && peakFeet < 92.5F, "full wall still blocks (z=" + endZ + ")");
 
       if (failures == 0) System.out.println("SLIP PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }
