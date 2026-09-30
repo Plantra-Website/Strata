@@ -51,6 +51,17 @@ public abstract class Block {
       return new AABB(x, y, z, x + 1.0F, y + 1.0F, z + 1.0F);
    }
 
+   public AABB pickBox(BlockView level, int x, int y, int z) {
+      return this.pickBox(x, y, z);
+   }
+
+   public AABB collisionBox(BlockView level, int x, int y, int z) {
+      if (!this.solid) {
+         return null;
+      }
+      return new AABB(x, y, z, x + 1.0F, y + 1.0F, z + 1.0F);
+   }
+
    public boolean needsSupport() {
       return false;
    }

@@ -1,5 +1,6 @@
 package com.strata.world;
 
+import com.strata.blocks.Block;
 import com.strata.blocks.BlockState;
 import com.strata.blocks.BlockView;
 import com.strata.blocks.Blocks;
@@ -293,6 +294,9 @@ public class Level implements BlockView, LightWorld {
       if (id == Blocks.SNOW_LAYER_ID) {
          return (this.getData(x, y, z) & 7) >= 3;
       }
+      if (id == Blocks.LILYPAD_ID) {
+         return true;
+      }
       return Blocks.isSolid(id);
    }
 
@@ -350,6 +354,7 @@ public class Level implements BlockView, LightWorld {
 
    public static final int SAPLING_TICKS = FluidSimulator.SAPLING_TICKS;
    public static final int GROWTH_TICKS = FluidSimulator.GROWTH_TICKS;
+   public static final int MELT_TICKS = FluidSimulator.MELT_TICKS;
    final FluidSimulator fluids;
 
    public void scheduleTick(int x, int y, int z, int delay) {
@@ -358,6 +363,10 @@ public class Level implements BlockView, LightWorld {
 
    public void tickScheduled() {
       this.fluids.tickScheduled();
+   }
+
+   public void armMeltCheck(int x, int y, int z, int radius) {
+      this.fluids.armMeltCheck(x, y, z, radius);
    }
 
 
@@ -423,7 +432,9 @@ public class Level implements BlockView, LightWorld {
          for (int y = y0; y < y1; y++) {
             for (int z = z0; z < z1; z++) {
                if (this.isSolidTile(x, y, z)) {
-                  aABBs.add(new AABB(x, y, z, x + 1, y + 1, z + 1));
+                  Block body = Blocks.byId(this.getTile(x, y, z));
+                  AABB box = body == null ? null : body.collisionBox(this, x, y, z);
+                  aABBs.add(box != null ? box : new AABB(x, y, z, x + 1, y + 1, z + 1));
                }
             }
          }

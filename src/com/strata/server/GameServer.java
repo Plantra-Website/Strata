@@ -356,7 +356,8 @@ public class GameServer implements LevelListener {
          int id = this.level.getTile(x, yy, z);
          int below = yy > 0 ? this.level.getTile(x, yy - 1, z) : 1;
          if (Blocks.isFalling(id)
-            && (below == 0 || Blocks.isFluid(below) || below == Blocks.SNOW_LAYER_ID)) {
+            && (below == 0 || Blocks.isFluid(below) || below == Blocks.SNOW_LAYER_ID
+               || below == Blocks.LILYPAD_ID)) {
             this.spawnFalling(x, yy, z, id);
          }
       }
@@ -534,6 +535,14 @@ public class GameServer implements LevelListener {
       }
       if (p.blockId == Blocks.REED_ID || p.blockId == Blocks.CACTUS_ID) {
          this.level.scheduleTick(x, y, z, Level.GROWTH_TICKS);
+      }
+      if (p.blockId == Blocks.TORCH_ID) {
+         this.level.armMeltCheck(x, y, z, 5);
+      } else if (p.blockId == Blocks.LAVA_ID) {
+         this.level.armMeltCheck(x, y, z, 7);
+      } else if (p.blockId == Blocks.ICE_ID || p.blockId == Blocks.SNOW_LAYER_ID
+         || p.blockId == Blocks.SNOW_BLOCK_ID) {
+         this.level.armMeltCheck(x, y, z, 7);
       }
       if (Blocks.isFluid(p.blockId)) {
          this.level.scheduleTick(x, y, z, Fluid.of(p.blockId).ticks);

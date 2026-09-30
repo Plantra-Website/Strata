@@ -35,7 +35,7 @@ public class Raycaster {
          if (tile > 0 && !Blocks.isFluid(tile) && !inside) {
             Block block = Blocks.byId(tile);
             if (block != null) {
-               AABB box = block.pickBox(x, y, z);
+               AABB box = block.pickBox(level, x, y, z);
                double[] hit = slabHit(box, ex, ey, ez, dx, dy, dz);
                if (hit != null && hit[0] < bestT) {
                   bestT = hit[0];

@@ -19,6 +19,7 @@ public class Player extends Entity {
 
    public Player(Level level) {
       this.level = level;
+      this.stepHeight = 0.5F;
       this.resetPos();
    }
 

@@ -22,6 +22,20 @@ public class SnowBlock extends Block {
    }
 
    @Override
+   public AABB pickBox(BlockView level, int x, int y, int z) {
+      float h = UNIT * (1 + (level.getBlockState(x, y, z).data & 7));
+      return new AABB(x, y, z, x + 1.0F, y + h, z + 1.0F);
+   }
+
+   @Override
+   public AABB collisionBox(BlockView level, int x, int y, int z) {
+      if ((level.getBlockState(x, y, z).data & 7) >= 3) {
+         return new AABB(x, y, z, x + 1.0F, y + 0.5F, z + 1.0F);
+      }
+      return null;
+   }
+
+   @Override
    public void render(MeshBuilder t, BlockView level, int layer, int x, int y, int z) {
       this.render(t, level, layer, x, y, z, BlockState.of(this));
    }

@@ -42,7 +42,9 @@ public class TorchBlock extends Block {
       int facing = level.getBlockState(x, y, z).data;
       if (facing < 2 || facing > 5) {
          int below = level.getTile(x, y - 1, z);
-         return below != Blocks.SNOW_LAYER_ID && level.isSolidTile(x, y - 1, z);
+         return below != Blocks.SNOW_LAYER_ID && below != Blocks.LILYPAD_ID
+            && !Blocks.isLeaves(below) && below != Blocks.ICE_ID
+            && level.isSolidTile(x, y - 1, z);
       }
       return wallSolid(level, x, y, z, facing);
    }

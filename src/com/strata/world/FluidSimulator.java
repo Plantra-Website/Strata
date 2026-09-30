@@ -12,6 +12,8 @@ final class FluidSimulator {
 
    static final int GROWTH_TICKS = 300;
 
+   static final int MELT_TICKS = 600;
+
    private final Level level;
    private final HashMap<Long, Long> scheduled = new HashMap<>();
    private long scheduledClock = 0;
@@ -63,6 +65,36 @@ final class FluidSimulator {
          this.flowLiquid(x, y, z, id);
       } else if (id == Blocks.REED_ID || id == Blocks.CACTUS_ID) {
          this.growStalk(x, y, z, id);
+      } else if (id == Blocks.ICE_ID || id == Blocks.SNOW_LAYER_ID
+         || id == Blocks.SNOW_BLOCK_ID) {
+         this.meltCheck(x, y, z, id);
+      }
+   }
+
+   private void meltCheck(int x, int y, int z, int id) {
+      int glow = this.level.getBlockLevel(x, y, z);
+      if (id == Blocks.ICE_ID) {
+         if (glow > 8) {
+            this.level.setTile(x, y, z, Blocks.WATER_ID);
+         }
+         return;
+      }
+      if (glow > 11) {
+         this.level.setTile(x, y, z, 0);
+      }
+   }
+
+   void armMeltCheck(int x, int y, int z, int radius) {
+      for (int dx = -radius; dx <= radius; dx++) {
+         for (int dy = -radius; dy <= radius; dy++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+               int id = this.level.getTile(x + dx, y + dy, z + dz);
+               if (id == Blocks.ICE_ID || id == Blocks.SNOW_LAYER_ID
+                  || id == Blocks.SNOW_BLOCK_ID) {
+                  this.scheduleTick(x + dx, y + dy, z + dz, MELT_TICKS);
+               }
+            }
+         }
       }
    }
 
@@ -271,6 +303,7 @@ final class FluidSimulator {
       this.wakeFluids(x, y, z);
       if (fluid == Blocks.LAVA_ID) {
          this.hardenCheck(x, y, z);
+         this.armMeltCheck(x, y, z, 7);
       } else {
          this.hardenNeighbors(x, y, z);
       }

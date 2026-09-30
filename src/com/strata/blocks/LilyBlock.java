@@ -20,6 +20,11 @@ public class LilyBlock extends Block {
    }
 
    @Override
+   public AABB collisionBox(BlockView level, int x, int y, int z) {
+      return new AABB(x, y, z, x + 1.0F, y + LIFT, z + 1.0F);
+   }
+
+   @Override
    public void render(MeshBuilder t, BlockView level, int layer, int x, int y, int z) {
       float br = level.getBrightness(x, y, z);
       if (br == 1.0F ^ layer == 1) {

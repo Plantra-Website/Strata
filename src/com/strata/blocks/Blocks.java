@@ -89,7 +89,7 @@ public final class Blocks {
          AtlasStitcher.slot("blocks/sandstone_top.png"),
          AtlasStitcher.slot("blocks/sandstone_side.png"),
          AtlasStitcher.slot("blocks/sandstone_bottom.png")).hardness(60));
-      register(new CubeBlock(ICE_ID, AtlasStitcher.slot("blocks/ice.png")).hardness(15).drops(0));
+      register(new IceBlock(ICE_ID, AtlasStitcher.slot("blocks/ice.png")).hardness(15).drops(0));
       register(new CubeBlock(MYCELIUM_ID,
          AtlasStitcher.slot("blocks/mycelium_top.png"),
          AtlasStitcher.slot("blocks/mycelium_side.png"), dirt).hardness(18).drops(DIRT_ID));

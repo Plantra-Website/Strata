@@ -38,6 +38,11 @@ public class CactusBlock extends Block {
       return new AABB(x + IN, y, z + IN, x + 1.0F - IN, y + 1.0F, z + 1.0F - IN);
    }
 
+   @Override
+   public AABB collisionBox(BlockView level, int x, int y, int z) {
+      return new AABB(x + IN, y, z + IN, x + 1.0F - IN, y + 1.0F, z + 1.0F - IN);
+   }
+
    private static boolean show(BlockView level, int x, int y, int z) {
       int n = level.getTile(x, y, z);
       return n != Blocks.CACTUS_ID && !Blocks.blocksLight(n);
