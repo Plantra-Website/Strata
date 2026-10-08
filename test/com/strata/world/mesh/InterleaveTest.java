@@ -11,8 +11,10 @@ public class InterleaveTest {
       float[] v = {1, 2, 3, 4, 5, 6};
       float[] t = {7, 8, 9, 10};
       float[] c = {11, 12, 13, 14, 15, 16};
-      float[] out = Chunk.interleave(v, t, c, 2);
-      float[] want = {1, 2, 3, 7, 8, 11, 12, 13, 4, 5, 6, 9, 10, 14, 15, 16};
+      float[] n = {17, 18, 19, 20, 21, 22};
+      float[] out = Chunk.interleave(v, t, c, n, 2);
+      float[] want = {1, 2, 3, 7, 8, 11, 12, 13, 17, 18, 19,
+         4, 5, 6, 9, 10, 14, 15, 16, 20, 21, 22};
       check(out.length == want.length, "length " + out.length);
       for (int i = 0; i < want.length; i++) {
          if (out[i] != want[i]) {
@@ -20,7 +22,8 @@ public class InterleaveTest {
             break;
          }
       }
-      check(Chunk.STRIDE_BYTES == 32, "stride 32");
+      check(Chunk.STRIDE_BYTES == 44, "stride 44");
+      check(Chunk.STRIDE_FLOATS == 11, "stride floats 11");
       if (failures == 0) System.out.println("INTERLEAVE PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }
    }

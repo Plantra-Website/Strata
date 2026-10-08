@@ -119,7 +119,7 @@ public class SandTest {
       place(s, conn, vx, vh, z, Blocks.SAND_ID);
       ArrayList<Packet> packets = settle(s, conn, 500);
       check(s.level().getTile(vx, vh + 1, z) == 0, "void sand vacates");
-      check(sawDrop(packets, Blocks.SAND_ID), "void sand pops as a drop");
+      check(!sawDrop(packets, Blocks.SAND_ID), "void sand is lost, not dropped");
 
       int tx = x + 9;
       int th = ItemTest.surface(s.level(), tx, z);
@@ -144,11 +144,11 @@ public class SandTest {
 
       int wx = x + 18;
       int wh = ItemTest.surface(s.level(), wx, z);
-      for (int dx = -4; dx <= 4; dx++) {
-         for (int dz = -4; dz <= 4; dz++) {
+      for (int dx = -6; dx <= 6; dx++) {
+         for (int dz = -6; dz <= 6; dz++) {
             s.level().setTile(wx + dx, wh + 1, z + dz, Blocks.DIRT_ID);
-            s.level().setTile(wx + dx, wh + 2, z + dz, 0);
-            s.level().setTile(wx + dx, wh + 3, z + dz, 0);
+            s.level().setTile(wx + dx, wh + 2, z + dz, Blocks.DIRT_ID);
+            s.level().setTile(wx + dx, wh + 3, z + dz, Blocks.DIRT_ID);
          }
       }
       for (int dx = -1; dx <= 1; dx++) {
@@ -163,6 +163,47 @@ public class SandTest {
       settle(s, conn, 400);
       check(s.level().getTile(wx, wh + 2, z) == Blocks.SAND_ID, "grain settles on the seabed");
       check(s.level().getTile(wx, wh + 3, z) == Blocks.WATER_ID, "surface refills behind it");
+
+      int bx = x - 24;
+      int bh = ItemTest.surface(s.level(), bx, z);
+      for (int dx = -2; dx <= 2; dx++) {
+         s.level().setTile(bx + dx, bh, z, Blocks.DIRT_ID);
+         for (int y = bh + 1; y <= bh + 4; y++) {
+            s.level().setTile(bx + dx, y, z, 0);
+         }
+      }
+      s.level().setTile(bx - 1, bh + 2, z, Blocks.GRAVEL_ID);
+      s.level().setTile(bx, bh + 2, z, Blocks.GRAVEL_ID);
+      s.level().setTile(bx + 1, bh + 2, z, Blocks.GRAVEL_ID);
+      breakOnce(s, conn, bx, bh + 2, z);
+      check(s.fallingCount() == 2, "neighbors cascade off one break (" + s.fallingCount() + ")");
+      settle(s, conn, 400);
+      check(s.level().getTile(bx, bh + 2, z) == 0, "mined middle stays out");
+      check(s.level().getTile(bx - 1, bh + 1, z) == Blocks.GRAVEL_ID, "left neighbor lands one lower");
+      check(s.level().getTile(bx + 1, bh + 1, z) == Blocks.GRAVEL_ID, "right neighbor lands one lower");
+
+      int cx = bx + 10;
+      int ch = ItemTest.surface(s.level(), cx, z);
+      for (int dx = -2; dx <= 2; dx++) {
+         s.level().setTile(cx + dx, ch, z, Blocks.DIRT_ID);
+         for (int y = ch + 1; y <= ch + 4; y++) {
+            s.level().setTile(cx + dx, y, z, 0);
+         }
+      }
+      s.level().setTile(cx - 1, ch + 2, z, Blocks.GRAVEL_ID);
+      s.level().setTile(cx, ch + 2, z, Blocks.GRAVEL_ID);
+      s.level().setTile(cx + 1, ch + 2, z, Blocks.GRAVEL_ID);
+      for (int y = bh + 3; y <= bh + 11; y++) {
+         s.level().setTile(bx, y, z, 0);
+      }
+      s.level().setTile(bx, bh + 10, z, Blocks.GRAVEL_ID);
+      breakOnce(s, conn, bx, bh, z);
+      check(s.fallingCount() == 0, "settled rig breaks clean (" + s.fallingCount() + ")");
+      settle(s, conn, 100);
+      check(s.level().getTile(cx - 1, ch + 2, z) == Blocks.GRAVEL_ID, "far beam left untouched");
+      check(s.level().getTile(cx, ch + 2, z) == Blocks.GRAVEL_ID, "far beam middle untouched");
+      check(s.level().getTile(cx + 1, ch + 2, z) == Blocks.GRAVEL_ID, "far beam right untouched");
+      check(s.level().getTile(bx, bh + 10, z) == Blocks.GRAVEL_ID, "high floater hangs on");
 
       if (failures == 0) System.out.println("SAND PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }

@@ -29,10 +29,10 @@ public class Timer {
       float passedTicks = passedNs * this.timeScale * this.ticksPerSecond / (float)NS_PER_SECOND;
       float total = passedTicks + this.alpha;
       this.ticks = (int)total;
+      this.alpha = total - (int)total;
       if (this.ticks > MAX_TICKS_PER_FRAME) {
          this.ticks = MAX_TICKS_PER_FRAME;
       }
-      this.alpha = total - this.ticks;
    }
 }
 

@@ -2,7 +2,9 @@
 # Project build script (this file lives at the project root).
 #   ./build.sh        compile everything into out/
 #   ./build.sh run    compile and launch the game
-#   ./build.sh test   compile and run the headless suite (each test isolated)
+#   ./build.sh test   compile into out-test/ and run the headless suite
+#                     (each test isolated). A separate tree from out/ so the
+#                     suite and the game never clobber each other mid-run.
 #   ./build.sh strip  regenerate stripped/ (comment-free duplicate of src+test,
 #                     comment-only lines dropped) and verify it still compiles
 #   ./build.sh jar    fat release jar into dist/ (classes + res + libs +
@@ -10,6 +12,14 @@
 set -e
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
+# Pinned python (Xcode CLT 3.9 — PATH pythons like ~/.local/bin drift across
+# machines; same pin as tools/publish.sh, which shells out to ./build.sh
+# strip and must not silently switch interpreters mid-publish).
+PYTHON="/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9"
+if [ ! -x "$PYTHON" ]; then
+  echo "need $PYTHON (Xcode command line tools)" >&2
+  exit 1
+fi
 # JDK discovery (no machine-specific paths — must work on a fresh clone):
 # JAVA_HOME if 17+, else javac on PATH if 17+, else a Temurin-style install
 # under ~/Library, /Library or /usr/lib/jvm. 17.x preferred (the verified
@@ -26,7 +36,7 @@ pick_jdk() {
     return
   fi
   for want in 'javac 17' 'javac (1[89]|[2-9][0-9])'; do
-    for base in "$HOME/Library/Java/JavaVirtualMachines" /Library/Java/JavaVirtualMachines /usr/lib/jvm; do
+    for base in "$HOME/Library/Java/JavaVirtualMachines" /Library/Java/JavaVirtualMachines /usr/lib/jvm "/Applications/IntelliJ IDEA.app/Contents/plugins/javavirtualmachines"; do
       for d in "$base"/*/ "$base"; do
         for j in "$d/Contents/Home" "$d"; do
           if [ -x "$j/bin/javac" ] && "$j/bin/javac" -version 2>&1 | grep -qE "$want"; then
@@ -61,10 +71,21 @@ JAVA_FLAGS="-Xms256m"
 TMPDIR="${TMPDIR:-/tmp}"
 
 compile() {
+  # Target tree (default out/): the suite builds out-test/ so a test run
+  # never wipes or half-replaces the tree a live game is running from.
+  OUTDIR="${1:-out}"
   # Clean first: renamed/moved classes would otherwise leave stale .class
-  # files behind (DepTest scans out/ and would false-positive on ghosts).
-  rm -rf out
-  mkdir -p out
+  # files behind (DepTest scans the tree and would false-positive on ghosts).
+  # Finder holds .DS_Store handles that make rm -rf fail with "Directory
+  # not empty" — drop those first, then retry the wipe (loud failure beats
+  # a half-deleted tree and the bizarre NoClassDefFoundErrors it causes).
+  find "$OUTDIR" -name '.DS_Store' -delete 2>/dev/null || true
+  if ! rm -rf "$OUTDIR"; then
+    sleep 1
+    find "$OUTDIR" -name '.DS_Store' -delete 2>/dev/null || true
+    rm -rf "$OUTDIR" || { echo "cannot wipe $OUTDIR (close Finder windows on it?) — refusing to build half-clean" >&2; exit 1; }
+  fi
+  mkdir -p "$OUTDIR"
   # Alt-discovery index (see AtlasStitcher.hasTexture): probing
   # getResourceAsStream x99 per tile base costs seconds on the first
   # stitch (far worse from a jar). Regenerated every compile so it can
@@ -73,7 +94,7 @@ compile() {
   if [ -d res/textures ]; then
     (cd res/textures && find . -name '*.png' | sed 's|^\./||' | sort > index.txt)
   fi
-  cp -r res/. out/
+  cp -r res/. "$OUTDIR"/
   # test/ is optional (published trees ship code only): compile it when present.
   SOURCES="$(find src -name '*.java')"
   if [ -d test ]; then
@@ -81,15 +102,26 @@ compile() {
     SOURCES="$SOURCES $(find test -name '*.java')"
   fi
   # shellcheck disable=SC2086
-  "$JAVAC_BIN" -encoding UTF-8 -cp "$LIB" -d out $SOURCES
+  "$JAVAC_BIN" -encoding UTF-8 -cp "$LIB" -d "$OUTDIR" $SOURCES
+  # No fail-fast above is a feature (one log for the whole tree), but a
+  # half-written tree then fails downstream as bizarre
+  # NoClassDefFoundErrors. Guard with canaries from both trees.
+  for c in com/strata/world/Level.class com/strata/Boot.class com/strata/client/GameClient.class \
+      com/strata/world/gen/VegTest.class com/strata/DepTest.class; do
+    if [ ! -f "$OUTDIR/$c" ]; then
+      echo "compile incomplete (missing $OUTDIR/$c) — fix the javac errors above" >&2
+      exit 1
+    fi
+  done
 }
 
 run_tests() {
+  OUTDIR="${1:-out}"
   # Each test runs in a fresh temp dir: Level/region files never touch
   # the project, and tests can't see each other's saves.
   rm -rf "$TMPDIR/rbtest"
   found=0
-  for t in $(cd out && find . -name '*Test.class' | sed 's|^\./||; s|\.class$||; s|/|.|g'); do
+  for t in $(cd "$OUTDIR" && find . -name '*Test.class' | sed 's|^\./||; s|\.class$||; s|/|.|g'); do
     found=1
     d="$TMPDIR/rbtest/$(echo "$t" | tr . _)"
     mkdir -p "$d"
@@ -98,7 +130,7 @@ run_tests() {
     # steals focus (60 Dock bounces per suite run). Tests only need
     # BufferedImage/ImageIO/fonts, all headless-safe — no test opens a
     # window or GL context.
-    (cd "$d" && "$JAVA_BIN" $JAVA_FLAGS -Djava.awt.headless=true -cp "$ROOT/out:$ROOT/res:$LIB" "$t") || exit 1
+    (cd "$d" && "$JAVA_BIN" $JAVA_FLAGS -Djava.awt.headless=true -cp "$ROOT/$OUTDIR:$ROOT/res:$LIB" "$t") || exit 1
   done
   rm -rf "$TMPDIR/rbtest"
   if [ "$found" = "0" ]; then
@@ -109,13 +141,13 @@ run_tests() {
 case "${1:-build}" in
   build) compile; echo BUILD_OK ;;
   run) shift; compile; echo BUILD_OK; "$JAVA_BIN" $JAVA_FLAGS -cp "out:res:$LIB" com.strata.Boot "$@" ;;
-  test) compile; echo BUILD_OK; run_tests ;;
+  test) compile out-test; echo BUILD_OK; run_tests out-test ;;
   strip)
     if [ ! -f tools/strip.py ]; then
       echo "strip unavailable in this tree (dev-only tool)"; exit 1
     fi
     rm -rf stripped
-    python3 tools/strip.py || exit 1
+    "$PYTHON" tools/strip.py || exit 1
     # Prove the mirror is real code, not approximate text: it must compile.
     rm -rf "$TMPDIR/stripcheck"
     mkdir -p "$TMPDIR/stripcheck"

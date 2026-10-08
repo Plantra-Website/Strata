@@ -20,6 +20,8 @@ public class PlayerDataTest {
    }
 
    public static void main(String[] args) {
+      ItemTest.wipeDir(new File("playerworld"));
+      ItemTest.wipeDir(new File("playerworld_legacy"));
       File dir = new File("playerworld");
       LocalConnection conn = new LocalConnection();
       GameServer s = new GameServer(conn, dir, 60606L);
@@ -42,7 +44,8 @@ public class PlayerDataTest {
       GameServer re = new GameServer(new LocalConnection(), dir, null);
       Player rp = re.player();
       checkF(rp.x, 12.5F, "pos x resumes");
-      checkF(rp.y, 48.0F, "pos y resumes");
+      checkF(rp.y, 49.62F, "pos y resumes");
+      checkF(rp.bb.y0, 48.0F, "feet resume");
       checkF(rp.z, -7.5F, "pos z resumes");
       checkF(rp.yRot, 45.0F, "yaw resumes");
       checkF(rp.xRot, -10.0F, "pitch resumes");

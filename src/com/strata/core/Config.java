@@ -16,13 +16,15 @@ public final class Config {
 
    public static boolean LEAF_BLACKOUT = false;
 
+   public static boolean TINT_BLEND = true;
+
    public static final long SLOW_MESH_MS = 150L;
    public static final long SLOW_UPLOAD_MS = 25L;
    public static final long SLOW_SETTILE_MS = 25L;
    public static final long SLOW_FRAME_MS = 250L;
    public static final int DBG_STATUS_EVERY = 300;
 
-   public static final long DAY_LENGTH = 28800L;
+   public static final long DAY_LENGTH = 72000L;
    public static final String VERSION = "0.1.0.0";
    public static final int AUTOSAVE_TICKS = 18000;
 }

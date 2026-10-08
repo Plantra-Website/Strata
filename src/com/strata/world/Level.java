@@ -46,7 +46,19 @@ public class Level implements BlockView, LightWorld {
    final boolean loadFromDisk;
    private float[] spawnPoint = null;
    private final ArrayList<LevelListener> levelListeners = new ArrayList<>();
-    public static final int SAVE_VERSION = LevelStorage.SAVE_VERSION;
+   public static final int SAVE_VERSION = LevelStorage.SAVE_VERSION;
+
+   public interface DropSink {
+      void drop(int x, int y, int z, int blockId);
+   }
+
+   public void setDropSink(DropSink sink) {
+      this.fluids.dropSink = sink;
+   }
+
+   public void reseedTicks() {
+      this.fluids.reseedAfterLoad();
+   }
 
    public Level(int depth) {
       this(depth, true);
@@ -171,6 +183,7 @@ public class Level implements BlockView, LightWorld {
        }
        this.computed.clear();
        this.skyLight.clear();
+       this.blockLight.clear();
     }
 
    public int evictFar(int pcx, int pcz, int keepChunks) {
@@ -412,6 +425,29 @@ public class Level implements BlockView, LightWorld {
       this.fluids.armMeltCheck(x, y, z, radius);
    }
 
+   public java.util.ArrayList<Long> drainFluidSupport(int max) {
+      return this.fluids.drainSupport(max);
+   }
+
+   public void wakeRestlessFluids(int ccx0, int ccz0, int ccx1, int ccz1) {
+      for (int ccx = ccx0; ccx <= ccx1; ccx++) {
+         for (int ccz = ccz0; ccz <= ccz1; ccz++) {
+            for (int x = ccx * 16; x < ccx * 16 + 16; x++) {
+               for (int z = ccz * 16; z < ccz * 16 + 16; z++) {
+                  int wy = this.gen.unrestFluidY(x, z);
+                  if (wy < 0) {
+                     continue;
+                  }
+                  int id = this.getTile(x, wy, z);
+                  if (id == Blocks.WATER_ID || id == Blocks.LAVA_ID) {
+                     this.scheduleTick(x, wy, z, Fluid.of(id).ticks);
+                  }
+               }
+            }
+         }
+      }
+   }
+
 
    public static final int LAVA_TICKS = Fluid.LAVA.ticks; 
    public static final int LAVA_RANGE = Fluid.LAVA.range;
@@ -421,7 +457,8 @@ public class Level implements BlockView, LightWorld {
 
 
    void growTree(int x, int y, int z) {
-      if (!this.isSolidTile(x, y - 1, z)) {
+      int soil = this.getTile(x, y - 1, z);
+      if (soil != Blocks.GRASS_ID && soil != Blocks.DIRT_ID) {
          return;
       }
       int sapling = this.getTile(x, y, z);
@@ -432,9 +469,11 @@ public class Level implements BlockView, LightWorld {
       int log = TerrainGenerator.logForSpecies(species);
       int leaves = TerrainGenerator.leavesForSpecies(species);
       int th = birch ? 5 + (((x * 374761393 + z * 668265263) & 0x7FFFFFFF) % 3)
+         : spruce ? 6 + (((x * 374761393 + z * 668265263) & 0x7FFFFFFF) % 4)
          : 4 + (((x * 374761393 + z * 668265263) & 0x7FFFFFFF) % 3);
       for (int i = 0; i < th; i++) {
-         if (this.getTile(x, y + i, z) != 0 && this.getTile(x, y + i, z) != sapling) {
+         int t = this.getTile(x, y + i, z);
+         if (t != 0 && t != sapling && !Blocks.isLeaves(t)) {
             return;
          }
       }
@@ -530,9 +569,13 @@ public class Level implements BlockView, LightWorld {
        return this.skyLight.get(x, y, z);
     }
 
-    public int getBlockLevel(int x, int y, int z) {
-       return this.blockLight.get(x, y, z);
-    }
+     public int getBlockLevel(int x, int y, int z) {
+        return this.blockLight.get(x, y, z);
+     }
+
+     public int biomeAt(int x, int z) {
+        return this.gen.genBiomeAt(x, z);
+     }
 
     public void floodAdd(int x, int y, int z, int level) {
        this.blockLight.floodAdd(x, y, z, level);
@@ -543,31 +586,48 @@ public class Level implements BlockView, LightWorld {
        this.setData(x, y, z, state.data);
     }
 
-    void setData(int x, int y, int z, int data) {
-       if (y < 0 || y >= this.depth) {
-          return;
-       }
-       data = data & 0xFF;
-       long key = columnKey(x, z);
-       byte[] col = this.dataColumns.get(key);
-       int prev = col == null ? 0 : col[y] & 0xFF;
-       if (prev == data) {
-          return;
-       }
-       if (data == 0) {
-          col[y] = 0;
-       } else {
-          if (col == null) {
-             byte[] fresh = new byte[this.depth];
-             byte[] old = this.dataColumns.putIfAbsent(key, fresh);
-             col = (old != null) ? old : fresh;
-          }
-          col[y] = (byte)data;
-       }
-       for (int i = 0; i < this.levelListeners.size(); i++) {
-          this.levelListeners.get(i).tileChanged(x, y, z);
-       }
-    }
+   void setData(int x, int y, int z, int data) {
+      if (y < 0 || y >= this.depth) {
+         return;
+      }
+      int before = this.dataAt(x, y, z);
+      this.writeDataCell(x, y, z, data);
+      if (this.dataAt(x, y, z) == before) {
+         return;
+      }
+      this.storage.markDirty(x, z);
+      for (int i = 0; i < this.levelListeners.size(); i++) {
+         this.levelListeners.get(i).tileChanged(x, y, z);
+      }
+   }
+
+   void writeDataCell(int x, int y, int z, int data) {
+      if (y < 0 || y >= this.depth) {
+         return;
+      }
+      data = data & 0xFF;
+      long key = columnKey(x, z);
+      byte[] col = this.dataColumns.get(key);
+      int prev = col == null ? 0 : col[y] & 0xFF;
+      if (prev == data) {
+         return;
+      }
+      if (data == 0) {
+         col[y] = 0;
+      } else {
+         if (col == null) {
+            byte[] fresh = new byte[this.depth];
+            byte[] old = this.dataColumns.putIfAbsent(key, fresh);
+            col = (old != null) ? old : fresh;
+         }
+         col[y] = (byte)data;
+      }
+   }
+
+   private int dataAt(int x, int y, int z) {
+      byte[] col = this.dataColumns.get(columnKey(x, z));
+      return col == null ? 0 : col[y] & 0xFF;
+   }
 
      public void setTile(int x, int y, int z, int type) {
        if (y < 0 || y >= this.depth) {
@@ -602,7 +662,7 @@ public class Level implements BlockView, LightWorld {
        int prev = this.getTile(x, y, z);
        col[y] = (byte)type;
        this.computed.remove(key);
-       this.setData(x, y, z, 0);
+       this.writeDataCell(x, y, z, 0);
        if (type == 0) {
           this.removeBlockEntity(x, y, z);
        }

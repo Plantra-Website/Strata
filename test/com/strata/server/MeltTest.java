@@ -46,6 +46,13 @@ public class MeltTest {
       check(s.level().getTile(x - 1, h + 1, z) == 0, "snow layer melts away");
       check(s.level().getTile(x + 8, h + 1, z) == Blocks.ICE_ID, "distant ice survives");
 
+      s.level().setTile(x + 2, h + 1, z, Blocks.ICE_ID);
+      s.level().setTile(x + 2, h + 2, z, Blocks.SAND_ID);
+      s.level().armMeltCheck(x + 2, h + 1, z, 5);
+      ItemTest.drain(s, conn, Level.MELT_TICKS + 40);
+      check(s.level().getTile(x + 2, h + 1, z) == Blocks.SAND_ID, "sand sinks into the melt");
+      check(s.level().getTile(x + 2, h + 2, z) == 0, "sand vacates the melt surface");
+
       if (failures == 0) System.out.println("MELT PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }
    }

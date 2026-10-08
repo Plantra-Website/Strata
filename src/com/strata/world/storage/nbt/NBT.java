@@ -174,7 +174,11 @@ public final class NBT {
          case 5: return new FloatTag(in.readFloat());
          case 6: return new DoubleTag(in.readDouble());
          case 7: {
-            byte[] v = new byte[in.readInt()];
+            int len = in.readInt();
+            if (len < 0 || len > 1048576) {
+               throw new IOException("oversize byte array tag (" + len + ")");
+            }
+            byte[] v = new byte[len];
             in.readFully(v);
             return new ByteArrayTag(v);
          }
@@ -182,6 +186,9 @@ public final class NBT {
          case 9: {
             int elem = in.readByte() & 0xFF;
             int len = in.readInt();
+            if (len < 0 || len > 262144) {
+               throw new IOException("oversize list tag (" + len + ")");
+            }
             ListTag list = new ListTag((byte)elem);
             for (int i = 0; i < len; i++) {
                list.value.add(readPayload(elem, in));
@@ -194,7 +201,11 @@ public final class NBT {
             return c;
          }
          case 11: {
-            int[] v = new int[in.readInt()];
+            int len = in.readInt();
+            if (len < 0 || len > 262144) {
+               throw new IOException("oversize int array tag (" + len + ")");
+            }
+            int[] v = new int[len];
             for (int i = 0; i < v.length; i++) {
                v[i] = in.readInt();
             }

@@ -26,13 +26,15 @@ public class Raycaster {
       double tDeltaX = 1.0 / Math.abs(dx);
       double tDeltaY = 1.0 / Math.abs(dy);
       double tDeltaZ = 1.0 / Math.abs(dz);
-      boolean inside = level.getTile(x, y, z) > 0;
+      boolean first = true;
       double bestT = maxDist + 1.0;
       HitResult best = null;
       double t = 0.0;
       while (t <= maxDist && t <= bestT) {
          int tile = level.getTile(x, y, z);
-         if (tile > 0 && !Blocks.isFluid(tile) && !inside) {
+         boolean skipStart = first && tile > 0 && !Blocks.isFluid(tile);
+         first = false;
+         if (tile > 0 && !Blocks.isFluid(tile) && !skipStart) {
             Block block = Blocks.byId(tile);
             if (block != null) {
                AABB box = block.pickBox(level, x, y, z);
@@ -42,9 +44,6 @@ public class Raycaster {
                   best = new HitResult(x, y, z, (int)hit[1]);
                }
             }
-         }
-         if (tile <= 0 || Blocks.isFluid(tile)) {
-            inside = false;
          }
          if (tMaxX < tMaxY && tMaxX < tMaxZ) {
             x += stepX;

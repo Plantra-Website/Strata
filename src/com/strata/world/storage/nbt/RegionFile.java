@@ -14,16 +14,17 @@ public class RegionFile {
    private static final int HEADER_SECTORS = 2;
    private static final byte VERSION_ZLIB = 2;
    private static final double COMPACT_WASTE_FRACTION = 0.5;
-   private final RandomAccessFile file;
+   private final File path;
+   private RandomAccessFile file;
    private final int[] offsets = new int[1024];
    private final int[] timestamps = new int[1024];
    private int wastedSectors = 0;
 
    public RegionFile(File path) throws IOException {
       path.getParentFile().mkdirs();
-      boolean fresh = !path.exists() || path.length() < SECTOR * HEADER_SECTORS;
-      this.file = new RandomAccessFile(path, "rw");
-      if (fresh) {
+      this.path = path;
+      if (!path.exists()) {
+         this.file = new RandomAccessFile(path, "rw");
          for (int i = 0; i < 1024; i++) {
             this.file.writeInt(0);
          }
@@ -31,18 +32,27 @@ public class RegionFile {
             this.file.writeInt(0);
          }
       } else {
-         for (int i = 0; i < 1024; i++) {
-            this.offsets[i] = this.file.readInt();
+         if (path.length() < SECTOR * HEADER_SECTORS) {
+            throw new IOException("truncated region file " + path + " (" + path.length() + " bytes)");
          }
-         for (int i = 0; i < 1024; i++) {
-            this.timestamps[i] = this.file.readInt();
-         }
+         this.file = new RandomAccessFile(path, "rw");
+         this.readHeaders();
          int used = 0;
          for (int i = 0; i < 1024; i++) {
             used += this.offsets[i] & 0xFF;
          }
          int total = (int)(this.file.length() / SECTOR);
          this.wastedSectors = Math.max(0, total - used - HEADER_SECTORS);
+      }
+   }
+
+   private void readHeaders() throws IOException {
+      this.file.seek(0);
+      for (int i = 0; i < 1024; i++) {
+         this.offsets[i] = this.file.readInt();
+      }
+      for (int i = 0; i < 1024; i++) {
+         this.timestamps[i] = this.file.readInt();
       }
    }
 
@@ -132,9 +142,24 @@ public class RegionFile {
       this.file.writeInt(this.timestamps[idx]);
    }
 
-   public synchronized void close() throws IOException {
-      this.file.close();
-   }
+    public synchronized void close() throws IOException {
+       this.file.close();
+    }
+
+    public synchronized void clearChunk(int lx, int lz) throws IOException {
+       int idx = index(lx, lz);
+       int old = this.offsets[idx];
+       if (old == 0) {
+          return;
+       }
+       this.wastedSectors += old & 0xFF;
+       this.offsets[idx] = 0;
+       this.timestamps[idx] = 0;
+       this.file.seek((long)idx * 4);
+       this.file.writeInt(0);
+       this.file.seek((long)(1024 + idx) * 4);
+       this.file.writeInt(0);
+    }
 
    public synchronized double wasteFraction() throws IOException {
       long total = this.file.length() / SECTOR;
@@ -154,27 +179,63 @@ public class RegionFile {
 
    private void compact() throws IOException {
       byte[][] live = new byte[1024][];
+      int skipped = 0;
       for (int i = 0; i < 1024; i++) {
          if (this.offsets[i] != 0) {
             int lx = i & 31;
             int lz = (i >> 5) & 31;
-            live[i] = this.readChunk(lx, lz);
+            try {
+               live[i] = this.readChunk(lx, lz);
+            } catch (Exception e) {
+               live[i] = null;
+               skipped++;
+            }
          }
       }
-      this.file.setLength(0);
-      for (int i = 0; i < 1024; i++) {
-         this.file.writeInt(0);
+      if (skipped > 0) {
+         com.strata.core.Log.warn("world", "compact drops " + skipped
+            + " unreadable chunk(s) in " + this.path.getName());
       }
-      for (int i = 0; i < 1024; i++) {
-         this.file.writeInt(0);
-      }
-      java.util.Arrays.fill(this.offsets, 0);
-      this.wastedSectors = 0;
-      for (int i = 0; i < 1024; i++) {
-         if (live[i] != null) {
-            int lx = i & 31;
-            int lz = (i >> 5) & 31;
-            this.writeCompacted(lx, lz, live[i]);
+      this.file.close();
+      File tmp = new File(this.path.getAbsolutePath() + ".compact-tmp");
+      boolean renamed = false;
+      try {
+         if (tmp.exists() && !tmp.delete()) {
+            throw new IOException("cannot clear compact tmp " + tmp);
+         }
+         this.file = new RandomAccessFile(tmp, "rw");
+         for (int i = 0; i < 1024; i++) {
+            this.file.writeInt(0);
+         }
+         for (int i = 0; i < 1024; i++) {
+            this.file.writeInt(0);
+         }
+         java.util.Arrays.fill(this.offsets, 0);
+         this.wastedSectors = 0;
+         for (int i = 0; i < 1024; i++) {
+            if (live[i] != null) {
+               int lx = i & 31;
+               int lz = (i >> 5) & 31;
+               this.writeCompacted(lx, lz, live[i]);
+            }
+         }
+         this.file.close();
+         if (!tmp.renameTo(this.path)) {
+            throw new IOException("compact rename failed for " + this.path);
+         }
+         renamed = true;
+         this.file = new RandomAccessFile(this.path, "rw");
+      } finally {
+         if (!renamed) {
+            tmp.delete();
+            this.file = new RandomAccessFile(this.path, "rw");
+            this.readHeaders();
+            int used = 0;
+            for (int i = 0; i < 1024; i++) {
+               used += this.offsets[i] & 0xFF;
+            }
+            int total = (int)(this.file.length() / SECTOR);
+            this.wastedSectors = Math.max(0, total - used - HEADER_SECTORS);
          }
       }
    }

@@ -8,6 +8,22 @@ import java.util.HashMap;
 import java.util.Map;
 
 final class FluidSimulator {
+   private final java.util.LinkedHashSet<Long> supportQueue = new java.util.LinkedHashSet<>();
+
+   private void watchSupport(int x, int y, int z) {
+      this.supportQueue.add(Level.entityKey(x, y, z));
+   }
+
+   java.util.ArrayList<Long> drainSupport(int max) {
+      java.util.ArrayList<Long> out = new java.util.ArrayList<>(Math.min(max, this.supportQueue.size()));
+      var it = this.supportQueue.iterator();
+      while (it.hasNext() && out.size() < max) {
+         out.add(it.next());
+         it.remove();
+      }
+      return out;
+   }
+
    static final int SAPLING_TICKS = 12000;
 
    static final int GROWTH_TICKS = 300;
@@ -17,6 +33,7 @@ final class FluidSimulator {
    private final Level level;
    private final HashMap<Long, Long> scheduled = new HashMap<>();
    private long scheduledClock = 0;
+   Level.DropSink dropSink = null;
 
    FluidSimulator(Level level) {
       this.level = level;
@@ -76,11 +93,17 @@ final class FluidSimulator {
       if (id == Blocks.ICE_ID) {
          if (glow > 8) {
             this.level.setTile(x, y, z, Blocks.WATER_ID);
+            this.scheduleTick(x, y, z, Fluid.of(Blocks.WATER_ID).ticks);
+            this.wakeFluids(x, y, z);
+            this.hardenNeighbors(x, y, z);
+            this.watchSupport(x, y, z);
          }
          return;
       }
       if (glow > 11) {
          this.level.setTile(x, y, z, 0);
+         this.wakeFluids(x, y, z);
+         this.watchSupport(x, y, z);
       }
    }
 
@@ -132,7 +155,16 @@ final class FluidSimulator {
          return;
       }
 
-      if (y > 0 && this.level.getTile(x, y - 1, z) == 0) {
+      if (fluid == Blocks.LAVA_ID && y > 0
+         && this.level.getTile(x, y - 1, z) == Blocks.WATER_ID) {
+         this.level.setTile(x, y - 1, z, Blocks.STONE_ID);
+         this.wakeFluids(x, y - 1, z);
+         return;
+      }
+      if (y > 0 && this.washableOrAir(x, y - 1, z)) {
+         if (this.level.getTile(x, y - 1, z) != 0) {
+            this.level.setTile(x, y - 1, z, 0);
+         }
          this.placeFlow(fluid, x, y - 1, z, level >= 8 ? level : level + 8);
          return;
       }
@@ -161,10 +193,11 @@ final class FluidSimulator {
          if (want != level) {
             if (want < 0) {
                this.removeFlow(x, y, z);
-            } else {
-               this.level.setData(x, y, z, want);
-               this.scheduleTick(x, y, z, ticks);
+               this.wakeFluids(x, y, z);
+               return;
             }
+            this.level.setData(x, y, z, want);
+            this.scheduleTick(x, y, z, ticks);
             this.wakeFluids(x, y, z);
          }
       }
@@ -172,27 +205,30 @@ final class FluidSimulator {
       if (sideLevel > range) {
          return;
       }
-      if (y > 0) {
-         int below = this.level.getTile(x, y - 1, z);
-         if (below == 0 || Blocks.isFluid(below)) {
-            if (fluid != Blocks.WATER_ID || level != 0) {
-               return;
-            }
-         }
+      if (y > 0 && level != 0 && !this.blocksFlow(x, y - 1, z)) {
+         return;
       }
       boolean[] opt = this.optimalFlowDirs(x, y, z, fluid);
-      if (opt[0] && this.level.getTile(x + 1, y, z) == 0) {
+      if (opt[0] && this.washableOrAir(x + 1, y, z)) {
          this.placeFlow(fluid, x + 1, y, z, sideLevel);
       }
-      if (opt[1] && this.level.getTile(x - 1, y, z) == 0) {
+      if (opt[1] && this.washableOrAir(x - 1, y, z)) {
          this.placeFlow(fluid, x - 1, y, z, sideLevel);
       }
-      if (opt[2] && this.level.getTile(x, y, z + 1) == 0) {
+      if (opt[2] && this.washableOrAir(x, y, z + 1)) {
          this.placeFlow(fluid, x, y, z + 1, sideLevel);
       }
-      if (opt[3] && this.level.getTile(x, y, z - 1) == 0) {
+      if (opt[3] && this.washableOrAir(x, y, z - 1)) {
          this.placeFlow(fluid, x, y, z - 1, sideLevel);
       }
+   }
+
+   private boolean washableOrAir(int x, int y, int z) {
+      int id = this.level.getTile(x, y, z);
+      if (id == Blocks.REED_ID) {
+         return false;
+      }
+      return id == 0 || (id != 0 && !Blocks.isFluid(id) && !Blocks.isSolid(id));
    }
 
    private int smallestFlowDecay(int x, int y, int z, int best, int fluid) {
@@ -208,16 +244,19 @@ final class FluidSimulator {
 
    private int adjacentSources(int x, int y, int z, int fluid) {
       int n = 0;
-      if (this.level.getTile(x + 1, y, z) == fluid && effLevel(this.level.getData(x + 1, y, z)) == 0) n++;
-      if (this.level.getTile(x - 1, y, z) == fluid && effLevel(this.level.getData(x - 1, y, z)) == 0) n++;
-      if (this.level.getTile(x, y, z + 1) == fluid && effLevel(this.level.getData(x, y, z + 1)) == 0) n++;
-      if (this.level.getTile(x, y, z - 1) == fluid && effLevel(this.level.getData(x, y, z - 1)) == 0) n++;
+      if (this.level.getTile(x + 1, y, z) == fluid && this.level.getData(x + 1, y, z) == 0) n++;
+      if (this.level.getTile(x - 1, y, z) == fluid && this.level.getData(x - 1, y, z) == 0) n++;
+      if (this.level.getTile(x, y, z + 1) == fluid && this.level.getData(x, y, z + 1) == 0) n++;
+      if (this.level.getTile(x, y, z - 1) == fluid && this.level.getData(x, y, z - 1) == 0) n++;
       return n;
    }
 
    private boolean blocksFlow(int x, int y, int z) {
       int id = this.level.getTile(x, y, z);
-      return id != 0 && id != Blocks.LAVA_ID;
+      if (id == 0 || Blocks.isFluid(id)) {
+         return false;
+      }
+      return Blocks.isSolid(id) || id == Blocks.REED_ID;
    }
 
    private int flowCost(int x, int y, int z, int depth, int fromDir, int fluid) {
@@ -231,8 +270,8 @@ final class FluidSimulator {
          int nz = z + (dir == 2 ? 1 : dir == 3 ? -1 : 0);
          if (!this.blocksFlow(nx, y, nz)
             && (this.level.getTile(nx, y, nz) != fluid
-               || effLevel(this.level.getData(nx, y, nz)) != 0)) {
-            if (this.level.getTile(nx, y - 1, nz) == 0) {
+               || this.level.getData(nx, y, nz) != 0)) {
+            if (!this.blocksFlow(nx, y - 1, nz)) {
                return depth;
             }
             if (depth < 4) {
@@ -254,8 +293,8 @@ final class FluidSimulator {
          cost[dir] = 1000;
          if (!this.blocksFlow(nx[dir], y, nz[dir])
             && (this.level.getTile(nx[dir], y, nz[dir]) != fluid
-               || effLevel(this.level.getData(nx[dir], y, nz[dir])) != 0)) {
-            if (this.level.getTile(nx[dir], y - 1, nz[dir]) == 0) {
+               || this.level.getData(nx[dir], y, nz[dir]) != 0)) {
+            if (!this.blocksFlow(nx[dir], y - 1, nz[dir])) {
                cost[dir] = 0;
             } else {
                cost[dir] = this.flowCost(nx[dir], y, nz[dir], 1, dir, fluid);
@@ -294,28 +333,59 @@ final class FluidSimulator {
    private void removeFlow(int x, int y, int z) {
       this.level.setTile(x, y, z, 0);
       this.level.setData(x, y, z, 0);
+      this.watchSupport(x, y, z);
    }
 
    private void placeFlow(int fluid, int x, int y, int z, int level) {
+      int was = this.level.getTile(x, y, z);
+      if (was != 0 && !Blocks.isFluid(was) && !Blocks.isSolid(was)) {
+         if (fluid == Blocks.WATER_ID && this.dropSink != null) {
+            int drop = Blocks.dropId(was);
+            if (drop > 0) {
+               this.dropSink.drop(x, y, z, was);
+            }
+         }
+      }
       this.level.setTile(x, y, z, fluid);
       this.level.setData(x, y, z, level);
       this.scheduleTick(x, y, z, Fluid.of(fluid).ticks);
+      this.watchSupport(x, y, z);
       this.wakeFluids(x, y, z);
       if (fluid == Blocks.LAVA_ID) {
          this.hardenCheck(x, y, z);
-         this.armMeltCheck(x, y, z, 7);
+         this.armTouching(x, y, z);
       } else {
          this.hardenNeighbors(x, y, z);
       }
    }
 
+   private void armTouching(int x, int y, int z) {
+      this.armCell(x + 1, y, z);
+      this.armCell(x - 1, y, z);
+      this.armCell(x, y + 1, z);
+      this.armCell(x, y - 1, z);
+      this.armCell(x, y, z + 1);
+      this.armCell(x, y, z - 1);
+   }
+
+   private void armCell(int x, int y, int z) {
+      int id = this.level.getTile(x, y, z);
+      if (id == Blocks.ICE_ID || id == Blocks.SNOW_LAYER_ID
+         || id == Blocks.SNOW_BLOCK_ID) {
+         this.scheduleTick(x, y, z, MELT_TICKS);
+      }
+   }
+
+   private static final int[][] HARDEN_DIRS = {{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}, {0, 1, 0}};
+
    private boolean tryHarden(int x, int y, int z) {
       if (this.level.getTile(x, y, z) != Blocks.LAVA_ID) {
          return false;
       }
-      for (int[] d : Dirs.DIRS) {
+      boolean source = this.level.getData(x, y, z) == 0;
+      for (int[] d : HARDEN_DIRS) {
          if (this.level.getTile(x + d[0], y + d[1], z + d[2]) == Blocks.WATER_ID) {
-            this.level.setTile(x, y, z, Blocks.STONE_ID);
+            this.level.setTile(x, y, z, source ? Blocks.OBSIDIAN_ID : Blocks.COBBLE_ID);
             return true;
          }
       }
@@ -326,6 +396,27 @@ final class FluidSimulator {
       this.tryHarden(x, y, z);
    }
 
+   void reseedAfterLoad() {
+      for (Map.Entry<Long, byte[]> e : this.level.columns.entrySet()) {
+         long key = e.getKey();
+         int x = (int)(key >> 32);
+         int z = (int)(key & 0xFFFFFFFFL);
+         byte[] col = e.getValue();
+         for (int y = 0; y < col.length && y < this.level.depth; y++) {
+            int id = col[y] & 0xFF;
+            if (Blocks.isFluid(id)) {
+               this.scheduleTick(x, y, z, Fluid.of(id).ticks);
+            } else if (Blocks.isSapling(id)) {
+               this.scheduleTick(x, y, z, SAPLING_TICKS);
+            } else if (id == Blocks.REED_ID || id == Blocks.CACTUS_ID) {
+               this.scheduleTick(x, y, z, GROWTH_TICKS);
+            } else if (id == Blocks.ICE_ID || id == Blocks.SNOW_LAYER_ID
+               || id == Blocks.SNOW_BLOCK_ID) {
+               this.scheduleTick(x, y, z, MELT_TICKS);
+            }
+         }
+      }
+   }
    private void hardenNeighbors(int x, int y, int z) {
       for (int[] d : Dirs.DIRS) {
          this.hardenCheck(x + d[0], y + d[1], z + d[2]);

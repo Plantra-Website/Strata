@@ -30,9 +30,9 @@ public class NetTest {
         check(in2.breakX == -100 && in2.breakY == 42 && in2.breakZ == 200 && in2.breakFace == 5, "input target");
 
         PlaceBlock pl = new PlaceBlock();
-        pl.x = 1; pl.y = -2; pl.z = 300000; pl.face = 4; pl.blockId = 9;
+        pl.x = 1; pl.y = -2; pl.z = 300000; pl.face = 4; pl.blockId = 9; pl.slot = 3;
         PlaceBlock pl2 = (PlaceBlock)roundtrip(pl);
-        check(pl2.x == 1 && pl2.y == -2 && pl2.z == 300000 && pl2.face == 4 && pl2.blockId == 9, "place");
+        check(pl2.x == 1 && pl2.y == -2 && pl2.z == 300000 && pl2.face == 4 && pl2.blockId == 9 && pl2.slot == 3, "place");
 
         check(roundtrip(new SaveGame()) instanceof SaveGame, "save marker");
         check(roundtrip(new SpectateToggle()) instanceof SpectateToggle, "spectate marker");
@@ -129,6 +129,7 @@ public class NetTest {
         System.out.println("sim ok (y=" + y0 + " z=" + z0 + ")");
 
         server.level().setTile(5, 59, 5, Blocks.DIRT_ID);
+        server.level().setTile(5, 60, 5, 0);
         PlaceBlock place = new PlaceBlock();
         place.x = 5; place.y = 59; place.z = 5; place.face = 1; place.blockId = 12;
         conn.sendToServer(place);

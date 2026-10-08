@@ -17,3 +17,4 @@ keyGive=EQUALS
 viewRadius=6
 sensitivity=1.0
 guiScale=0
+tintBlend=true

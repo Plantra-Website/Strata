@@ -26,7 +26,7 @@ public class BlocksTest {
       check(Blocks.particleTile(0) == 0, "air particle tile 0");
       check(Blocks.particleTile(999) == 0, "unknown particle tile 0");
       check(Blocks.isSolid(Blocks.STONE_ID), "stone solid");
-      check(Blocks.isSolid(Blocks.LAVA_ID), "lava solid (walkable crust)");
+      check(!Blocks.isSolid(Blocks.LAVA_ID), "lava walk-through (sink + burn, like water)");
       check(!Blocks.isSolid(Blocks.WATER_ID), "water walk-through (swim)");
       check(Blocks.isSolid(Blocks.SANDSTONE_ID), "sandstone solid");
       check(Blocks.isSolid(Blocks.ICE_ID), "ice solid (opaque pass)");

@@ -51,6 +51,25 @@ public abstract class Block {
       b.color(shade, v.getSkyLevel(x, y, z) / 15.0F, v.getBlockLevel(x, y, z) / 15.0F);
    }
 
+   protected static void tintFor(MeshBuilder b, BlockView v, int tile, int x, int z) {
+      int kind = AtlasStitcher.tintKind(tile);
+      if ((kind == BiomeTints.GRASS || kind == BiomeTints.FOLIAGE) && com.strata.core.Config.TINT_BLEND) {
+         float r = 0.0F, g = 0.0F, bl = 0.0F;
+         for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+               float[] c = BiomeTints.colorFor(kind, v.biomeAt(x + dx, z + dz));
+               r += c[0];
+               g += c[1];
+               bl += c[2];
+            }
+         }
+         b.tint(r / 9.0F, g / 9.0F, bl / 9.0F);
+         return;
+      }
+      float[] c = BiomeTints.colorFor(kind, v.biomeAt(x, z));
+      b.tint(c[0], c[1], c[2]);
+   }
+
    public AABB pickBox(int x, int y, int z) {
       return new AABB(x, y, z, x + 1.0F, y + 1.0F, z + 1.0F);
    }

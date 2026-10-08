@@ -56,11 +56,11 @@ public class ParticleLightTest {
       check(r.get(1).r > 0.9F, "negative drop bright (got " + r.get(1).r + ")");
       check(r.get(2).r > 0.9F, "positive drop still bright");
       l.setSkylightSub(11);
-      r.tick(0, 60, 0);
+      r.tick(new com.strata.core.AABB(0, 60, 0, 1, 62, 1));
       check(r.get(1).r < 0.5F, "negative drop dark at night (got " + r.get(1).r + ")");
       check(r.get(2).r < 0.5F, "positive drop dark at night (got " + r.get(2).r + ")");
       l.setSkylightSub(0);
-      r.tick(0, 60, 0);
+      r.tick(new com.strata.core.AABB(0, 60, 0, 1, 62, 1));
       check(r.get(1).r > 0.9F, "negative drop bright again at dawn");
       if (failures == 0) System.out.println("PARTLIGHT PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }

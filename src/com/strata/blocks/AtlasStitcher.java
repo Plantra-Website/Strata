@@ -91,6 +91,7 @@ public final class AtlasStitcher {
       "blocks/mushroom_block_skin_brown.png",
       "blocks/mushroom_block_skin_red.png",
       "blocks/grass_side_snowed.png",
+      "blocks/obsidian.png",
    };
 
    private AtlasStitcher() {
@@ -137,7 +138,39 @@ public final class AtlasStitcher {
       throw new RuntimeException("unknown atlas texture " + name);
    }
 
-   static final HashMap<String, int[]> TINTS = new HashMap<>();
+    private static final HashMap<Integer, Integer> TINT_KINDS = new HashMap<>();
+
+    public static int tintKind(int tile) {
+       ensureStitched();
+       Integer k = TINT_KINDS.get(tile);
+       return k == null ? BiomeTints.NONE : k;
+    }
+
+    static int kindFor(String name) {
+       String base = name;
+       if (base.endsWith(".png")) {
+          String stem = base.substring(0, base.length() - 4);
+          int i = stem.length();
+          while (i > 0 && Character.isDigit(stem.charAt(i - 1))) {
+             i--;
+          }
+          base = stem.substring(0, i) + ".png";
+       }
+       if (base.equals("blocks/grass_top.png") || base.equals("blocks/grass_side_overlay.png")
+          || base.equals("blocks/tall_grass.png") || base.equals("blocks/reeds.png")) {
+          return BiomeTints.GRASS;
+       }
+       if (base.equals("blocks/tinted/oak_leaves.png") || base.equals("blocks/vine.png")) {
+          return BiomeTints.FOLIAGE;
+       }
+       if (base.equals("blocks/birch_leaves.png")) {
+          return BiomeTints.BIRCH;
+       }
+       if (base.equals("blocks/spruce_leaves.png")) {
+          return BiomeTints.PINE;
+       }
+       return BiomeTints.NONE;
+    }
 
    private static final HashMap<Integer, boolean[]> ALPHA_MASKS = new HashMap<>();
 
@@ -147,17 +180,8 @@ public final class AtlasStitcher {
          m = new boolean[256];
          java.util.Arrays.fill(m, true);
       }
-      return m;
-   }
-
-   static {
-      int[] grass = new int[]{145, 189, 89};
-      int[] foliage = new int[]{119, 171, 47};
-      TINTS.put("blocks/tall_grass.png", grass);
-      TINTS.put("blocks/grass_top.png", grass);
-      TINTS.put("blocks/grass_side_overlay.png", grass);
-      TINTS.put("blocks/tinted/oak_leaves.png", foliage);
-   }
+       return m;
+    }
 
     public static synchronized BufferedImage stitch() {
        if (RECTS != null && stitchedAtlas != null) {
@@ -204,8 +228,15 @@ public final class AtlasStitcher {
       for (int i = TILES.length; i < names.size(); i++) {
          ALT_NAMES.add(names.get(i));
       }
-      ALT_SLOTS.clear();
-      ALT_SLOTS.putAll(altMap);
+       ALT_SLOTS.clear();
+       ALT_SLOTS.putAll(altMap);
+       TINT_KINDS.clear();
+       for (int i = 0; i < names.size(); i++) {
+          int k = kindFor(names.get(i));
+          if (k != BiomeTints.NONE) {
+             TINT_KINDS.put(i, k);
+          }
+       }
        Integer[] order = new Integer[names.size()];
        java.util.ArrayList<java.util.ArrayList<BufferedImage>> allFrames =
           new java.util.ArrayList<>(names.size());
@@ -256,15 +287,9 @@ public final class AtlasStitcher {
             }
          }
       }
-      for (int k = 0; k < order.length; k++) {
-         int t = order[k];
-         java.util.ArrayList<BufferedImage> frames = allFrames.get(t);
-         int[] tint = tintFor(names.get(t));
-         if (tint != null) {
-            for (BufferedImage f : frames) {
-               tintImage(f, tint);
-            }
-         }
+       for (int k = 0; k < order.length; k++) {
+          int t = order[k];
+          java.util.ArrayList<BufferedImage> frames = allFrames.get(t);
          if (blackTiles.contains(t)) {
             for (BufferedImage f : frames) {
                blackout(f);
@@ -365,18 +390,6 @@ public final class AtlasStitcher {
       return f;
    }
 
-   private static void tintImage(BufferedImage img, int[] tint) {      int w = img.getWidth();
-      int h = img.getHeight();
-      for (int x = 0; x < w; x++) {
-         for (int y = 0; y < h; y++) {
-            int px = img.getRGB(x, y);
-            int a = (px >>> 24) & 0xFF;
-            int v = px & 0xFF; 
-            img.setRGB(x, y, (a << 24) | (v * tint[0] / 255 << 16) | (v * tint[1] / 255 << 8) | (v * tint[2] / 255));
-         }
-      }
-   }
-
    private static void blackout(BufferedImage img) {
       int w = img.getWidth();
       int h = img.getHeight();
@@ -412,26 +425,7 @@ public final class AtlasStitcher {
       return new java.util.HashSet<>(ANIM.keySet());
    }
 
-   static int[] tintFor(String name) {
-      int[] t = TINTS.get(name);
-      if (t != null) {
-         return t;
-      }
-      if (!name.endsWith(".png")) {
-         return null;
-      }
-      String stem = name.substring(0, name.length() - 4);
-      int i = stem.length();
-      while (i > 0 && Character.isDigit(stem.charAt(i - 1))) {
-         i--;
-      }
-      if (i == stem.length()) {
-         return null;
-      }
-      return TINTS.get(stem.substring(0, i) + ".png");
-   }
-
-   private static int[][] layout(Integer[] order, BufferedImage[] art, int size) {
+    private static int[][] layout(Integer[] order, BufferedImage[] art, int size) {
       int[][] rect = new int[order.length][];
       int shelfX = 0, shelfY = 0, shelfH = 0;
       for (int k = 0; k < order.length; k++) {

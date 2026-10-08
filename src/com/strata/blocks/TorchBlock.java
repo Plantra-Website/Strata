@@ -41,26 +41,23 @@ public class TorchBlock extends Block {
    public boolean canStay(BlockView level, int x, int y, int z) {
       int facing = level.getBlockState(x, y, z).data;
       if (facing < 2 || facing > 5) {
-         int below = level.getTile(x, y - 1, z);
-         return below != Blocks.SNOW_LAYER_ID && below != Blocks.LILYPAD_ID
-            && !Blocks.isLeaves(below) && below != Blocks.ICE_ID
-            && level.isSolidTile(x, y - 1, z);
+         return Blocks.isOpaqueCube(level.getTile(x, y - 1, z));
       }
       return wallSolid(level, x, y, z, facing);
    }
 
    public static boolean wallSolid(BlockView level, int x, int y, int z, int face) {
       if (face == 2) {
-         return level.isSolidTile(x, y, z + 1);
+         return Blocks.isOpaqueCube(level.getTile(x, y, z + 1));
       }
       if (face == 3) {
-         return level.isSolidTile(x, y, z - 1);
+         return Blocks.isOpaqueCube(level.getTile(x, y, z - 1));
       }
       if (face == 4) {
-         return level.isSolidTile(x + 1, y, z);
+         return Blocks.isOpaqueCube(level.getTile(x + 1, y, z));
       }
       if (face == 5) {
-         return level.isSolidTile(x - 1, y, z);
+         return Blocks.isOpaqueCube(level.getTile(x - 1, y, z));
       }
       return false;
    }
@@ -79,6 +76,7 @@ public class TorchBlock extends Block {
       float su0 = s[0], su1 = s[1], sv0 = s[2], sv1 = s[3];
       float br = level.getBrightness(x, y, z);
       lightColor(t, level, x, y, z, 1.0F);
+      tintFor(t, level, this.texture, x, z);
       int facing = state.data;
       if (facing >= 2 && facing <= 5) {
          float w = (POST_MAX - POST_MIN) / 2.0F;
@@ -101,17 +99,25 @@ public class TorchBlock extends Block {
             wall = x + 0.0F;
             lean = 1.0F;
          }
-         float zb0 = wall + lean * -0.1F;
-         float zb1 = wall + lean * -0.35F;
+         float zb0 = wall + lean * 0.1F;
+         float zb1 = wall + lean * 0.35F;
          if (!xAxis) {
-            t.quad(xc - w, y0, zb0, xc + w, y0, zb0, xc + w, y1, zb1, xc - w, y1, zb1,
+            t.quad(xc - w, y0, zb0 - w, xc + w, y0, zb0 - w, xc + w, y1, zb1 - w, xc - w, y1, zb1 - w,
                su0, sv1, su1, sv1, su1, sv0, su0, sv0);
-            t.quad(xc, y0, zb0 - w, xc, y0, zb0 + w, xc, y1, zb1 + w, xc, y1, zb1 - w,
+            t.quad(xc + w, y0, zb0 + w, xc - w, y0, zb0 + w, xc - w, y1, zb1 + w, xc + w, y1, zb1 + w,
+               su0, sv1, su1, sv1, su1, sv0, su0, sv0);
+            t.quad(xc - w, y0, zb0 + w, xc - w, y0, zb0 - w, xc - w, y1, zb1 - w, xc - w, y1, zb1 + w,
+               su0, sv1, su1, sv1, su1, sv0, su0, sv0);
+            t.quad(xc + w, y0, zb0 - w, xc + w, y0, zb0 + w, xc + w, y1, zb1 + w, xc + w, y1, zb1 - w,
                su0, sv1, su1, sv1, su1, sv0, su0, sv0);
          } else {
-            t.quad(zb0, y0, zc - w, zb0, y0, zc + w, zb1, y1, zc + w, zb1, y1, zc - w,
+            t.quad(zb0 - w, y0, zc - w, zb0 - w, y0, zc + w, zb1 - w, y1, zc + w, zb1 - w, y1, zc - w,
                su0, sv1, su1, sv1, su1, sv0, su0, sv0);
-            t.quad(zb0, y0, zc, zb0, y1, zc, zb1, y1, zc, zb1, y0, zc,
+            t.quad(zb0 + w, y0, zc + w, zb0 + w, y0, zc - w, zb1 + w, y1, zc - w, zb1 + w, y1, zc + w,
+               su0, sv1, su1, sv1, su1, sv0, su0, sv0);
+            t.quad(zb0 - w, y0, zc - w, zb0 + w, y0, zc - w, zb1 + w, y1, zc - w, zb1 - w, y1, zc - w,
+               su0, sv1, su1, sv1, su1, sv0, su0, sv0);
+            t.quad(zb0 + w, y0, zc + w, zb0 - w, y0, zc + w, zb1 - w, y1, zc + w, zb1 + w, y1, zc + w,
                su0, sv1, su1, sv1, su1, sv0, su0, sv0);
          }
          float capTop0 = s[4];

@@ -25,6 +25,9 @@ public class FallingBlock extends Entity {
    }
 
    public void tick() {
+      this.xo = this.x;
+      this.yo = this.y;
+      this.zo = this.z;
       this.yd -= 0.03F;
       this.xd *= 0.98F;
       this.yd *= 0.98F;

@@ -14,6 +14,7 @@ public class AutosaveTest {
    }
 
    public static void main(String[] args) {
+      ItemTest.wipeDir(new File("autosaveworld"));
       File dir = new File("autosaveworld");
       LocalConnection conn = new LocalConnection();
       GameServer s = new GameServer(conn, dir, 555L);

@@ -24,9 +24,14 @@ public class LevelTest {
     }
 
     public static void main(String[] args) throws Exception {
+        java.io.File testDir = new java.io.File("leveltest-world");
+        com.strata.server.ItemTest.wipeDir(testDir);
+        com.strata.world.gen.TerrainGenerator sharedGen =
+           new com.strata.world.gen.TerrainGenerator(
+              com.strata.world.gen.TerrainGenerator.DEFAULT_SEED, Level.WORLD_DEPTH);
         int[] xs = {-100000, -300, -17, -16, -1, 0, 1, 15, 16, 255, 99999};
 
-        Level l = new Level(Level.WORLD_DEPTH);
+        Level l = new Level(Level.WORLD_DEPTH, true, sharedGen, testDir);
         for (int x : xs) {
             int z = 99999 - x;
             check(l.getTile(x, 0, z) == 6, "bedrock floor @" + x);
@@ -184,7 +189,7 @@ public class LevelTest {
         System.out.println("cubes ok");
 
         l.save();
-        File rf = new File("region/r.1.-4.mca"); 
+        File rf = new File("leveltest-world/region/r.1.-4.mca"); 
         check(rf.exists() && rf.length() < 60000, "region file small (" + (rf.exists() ? rf.length() : -1) + " bytes)");
         RegionFile region = new RegionFile(rf);
         byte[] payload = region.readChunk(30, 3); 
@@ -192,7 +197,7 @@ public class LevelTest {
         check(payload != null, "column chunk stored");
         NBT.CompoundTag root = NBT.readRoot(new DataInputStream(new ByteArrayInputStream(payload)));
         check(root.compound("Level").integer("DataVersion") == Level.SAVE_VERSION, "save stamped current version");
-        Level l2 = new Level(Level.WORLD_DEPTH);
+        Level l2 = new Level(Level.WORLD_DEPTH, true, sharedGen, testDir);
         check(l2.getTile(1000, ay, -2000) == 0, "far edit not loaded before region demand");
         l2.ensureRegions(62, -125, 62, -125);
         l2.ensureRegions(-1, -1, -1, -1);
@@ -206,7 +211,7 @@ public class LevelTest {
         check(l2.getBrightness(bx, bh2 + 1, bz) == 1.0f, "light intact after reload");
         l2.setTile(-300, 50, -300, 2);
         l2.save();
-        Level l3 = new Level(Level.WORLD_DEPTH);
+        Level l3 = new Level(Level.WORLD_DEPTH, true, sharedGen, testDir);
         l3.ensureRegions(-19, -19, -19, -19);
         check(l3.getTile(-300, 50, -300) == 2, "negative-region edit survives");
         System.out.println("saveload ok");

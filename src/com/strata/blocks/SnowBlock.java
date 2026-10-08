@@ -50,6 +50,7 @@ public class SnowBlock extends Block {
          float v0 = uv[1];
          float v1 = uv[3];
          lightColor(t, level, x, y, z, 1.0F);
+         tintFor(t, level, this.texture, x, z);
          float y0 = y + 0.0F;
          float y1 = y + UNIT * (1 + (state.data & 7));
          float vSliceTop = CubeBlock.sliceV(v0, v1, (y1 - y0));

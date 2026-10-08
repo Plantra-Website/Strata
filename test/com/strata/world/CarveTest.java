@@ -1,5 +1,7 @@
 package com.strata.world;
 
+import com.strata.blocks.Blocks;
+
 public class CarveTest {
    static int failures = 0;
 
@@ -48,6 +50,31 @@ public class CarveTest {
             check(got[w][i] == got[0][i], "unanimous carve @" + queries[i][0] + "," + queries[i][1] + "," + queries[i][2]);
          }
       }
+
+      com.strata.world.gen.CaveCarver caves =
+         new com.strata.world.gen.CaveCarver(com.strata.world.gen.TerrainGenerator.DEFAULT_SEED, 64);
+      com.strata.world.gen.RavineCarver ravines =
+         new com.strata.world.gen.RavineCarver(com.strata.world.gen.TerrainGenerator.DEFAULT_SEED, 64);
+      int veins = 0, floated = 0;
+      for (int x = -48; x < 48; x++) {
+         for (int z = -48; z < 48; z++) {
+            for (int y = 1; y <= 40 && y < 64; y++) {
+               int id = l.getTile(x, y, z);
+               if (id == Blocks.GRAVEL_ID || Blocks.isOre(id)) {
+                  veins++;
+                  if (caves.isCarved(x, y, z) || ravines.isCarved(x, y, z)) {
+                     if (floated < 5) {
+                        System.out.println("FLOATER @" + x + "," + y + "," + z + " id=" + id);
+                     }
+                     floated++;
+                  }
+               }
+            }
+         }
+      }
+      System.out.println("veins=" + veins + " floaters=" + floated);
+      check(veins > 100, "vein sample exists (" + veins + ")");
+      check(floated == 0, "no floating veins (" + floated + ")");
 
       if (failures == 0) System.out.println("CARVE PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }

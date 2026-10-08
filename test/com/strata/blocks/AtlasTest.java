@@ -63,19 +63,13 @@ public class AtlasTest {
          int fw = src.getWidth();
          int fh = src.getWidth() <= src.getHeight() && src.getHeight() % src.getWidth() == 0
             ? src.getWidth() : src.getHeight();
-         int[] tint = AtlasStitcher.TINTS.get(AtlasStitcher.TILES[t]);
          boolean same = true;
          int[] rect = AtlasStitcher.tileRectPx(t);
          check(rect[2] == fw && rect[3] == fh, "tile " + t + " packed one frame");
          for (int x = 0; x < fw && same; x++) {
-            for (int y = 0; y < fh && same; y++) {
-               int px = src.getRGB(x, y);
-               int want = px;
-               if (tint != null) {
-                  int a = (px >>> 24) & 0xFF;
-                  int v = px & 0xFF;
-                  want = (a << 24) | (v * tint[0] / 255 << 16) | (v * tint[1] / 255 << 8) | (v * tint[2] / 255);
-               }
+             for (int y = 0; y < fh && same; y++) {
+                int px = src.getRGB(x, y);
+                int want = px;
                if (blackedOut(AtlasStitcher.TILES[t]) && ((px >>> 24) & 0xFF) < 128) {
                   want = 0xFF000000;
                }
@@ -112,15 +106,33 @@ public class AtlasTest {
       }
       check(threw, "unknown texture name throws");
 
-      for (String name : AtlasStitcher.TINTS.keySet()) {
-         boolean found = false;
-         for (String tile : AtlasStitcher.TILES) {
-            if (tile.equals(name)) {
-               found = true;
-            }
-         }
-         check(found, "tint names a stitched tile: " + name);
-      }
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/grass_top.png")) == BiomeTints.GRASS, "grass top kind");
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/grass_side_overlay.png")) == BiomeTints.GRASS, "overlay kind");
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/tall_grass.png")) == BiomeTints.GRASS, "tuft kind");
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/reeds.png")) == BiomeTints.GRASS, "reeds kind");
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/tinted/oak_leaves.png")) == BiomeTints.FOLIAGE, "oak kind");
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/vine.png")) == BiomeTints.FOLIAGE, "vine kind");
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/birch_leaves.png")) == BiomeTints.BIRCH, "birch kind");
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/spruce_leaves.png")) == BiomeTints.PINE, "pine kind");
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/stone.png")) == BiomeTints.NONE, "stone kind");
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/grass_side.png")) == BiomeTints.NONE, "dirt side kind");
+       check(AtlasStitcher.tintKind(AtlasStitcher.slot("blocks/rose.png")) == BiomeTints.NONE, "flower kind");
+
+       float[] swamp = BiomeTints.colorFor(BiomeTints.GRASS, 6);
+       check(Math.abs(swamp[0] - 106 / 255.0F) < 1e-4 && Math.abs(swamp[1] - 112 / 255.0F) < 1e-4
+          && Math.abs(swamp[2] - 57 / 255.0F) < 1e-4, "swamp grass murk");
+       float[] birch = BiomeTints.colorFor(BiomeTints.BIRCH, 4);
+       check(Math.abs(birch[0] - 128 / 255.0F) < 1e-4 && Math.abs(birch[1] - 167 / 255.0F) < 1e-4
+          && Math.abs(birch[2] - 85 / 255.0F) < 1e-4, "birch fixed (biome-independent)");
+       float[] pine = BiomeTints.colorFor(BiomeTints.PINE, 12);
+       check(Math.abs(pine[0] - 97 / 255.0F) < 1e-4, "pine fixed");
+       float[] none = BiomeTints.colorFor(BiomeTints.NONE, 6);
+       check(none[0] == 1.0F && none[1] == 1.0F && none[2] == 1.0F, "none is white");
+       float[] plains = BiomeTints.colorFor(BiomeTints.GRASS, 1);
+       float[] clamped = BiomeTints.colorFor(BiomeTints.GRASS, 99);
+       check(clamped == plains, "bad biome falls back to plains");
+       float[] oak = BiomeTints.colorFor(BiomeTints.FOLIAGE, 1);
+       check(Math.abs(oak[0] - 119 / 255.0F) < 1e-4, "plains foliage matches old bake");
 
       {
          final java.util.concurrent.atomic.AtomicReference<Throwable> boom =

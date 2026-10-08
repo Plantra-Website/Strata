@@ -123,7 +123,7 @@ public class MeshTest {
               overlayVerts++;
               float ox = v[i * 3], oz = v[i * 3 + 2];
               boolean onFace = (ox == x || ox == x + 1) && (oz == z || oz == z + 1);
-              check(!onFace, "overlay vert offset off face");
+              check(onFace, "overlay vert coplanar with face");
            }
         }
          check(overlayVerts == 16, "4 overlay quads (got " + overlayVerts + " verts)");

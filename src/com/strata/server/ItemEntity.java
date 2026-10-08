@@ -4,10 +4,9 @@ import com.strata.core.AABB;
 import com.strata.world.Level;
 
 public class ItemEntity extends Entity {
-   public static final int PICKUP_DELAY = 20;
-   public static final int EXPIRE_TICKS = 6000;
+   public static final int PICKUP_DELAY = 30;
+   public static final int EXPIRE_TICKS = 18000;
    public static final float MAGNET_RADIUS = 3.0F;
-   public static final float COLLECT_RADIUS = 0.9F;
 
    public final int id;
    public final int blockId;
@@ -29,15 +28,18 @@ public class ItemEntity extends Entity {
       this.zd = zd;
    }
 
-   public void tick(Level level, float px, float py, float pz) {
+   public void tick(Level level, AABB box) {
       this.level = level;
       this.age++;
       if (this.pickupDelay > 0) {
          this.pickupDelay--;
       }
-      float dx = px - this.x;
-      float dy = (py + 0.5F) - this.y;
-      float dz = pz - this.z;
+      float cx = (box.x0 + box.x1) / 2.0F;
+      float cy = (box.y0 + box.y1) / 2.0F;
+      float cz = (box.z0 + box.z1) / 2.0F;
+      float dx = cx - this.x;
+      float dy = cy - this.y;
+      float dz = cz - this.z;
       float dist = (float)Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (this.pickupDelay <= 0 && dist < MAGNET_RADIUS && dist > 0.001F) {
          float pull = 0.06F;
@@ -87,11 +89,10 @@ public class ItemEntity extends Entity {
       return this.age >= EXPIRE_TICKS;
    }
 
-   public boolean near(float px, float py, float pz) {
-      float dx = px - this.x;
-      float dy = py - this.y;
-      float dz = pz - this.z;
-      return dx * dx + dy * dy + dz * dz < COLLECT_RADIUS * COLLECT_RADIUS;
+   public boolean near(AABB box) {
+      return this.x > box.x0 - 1.0F && this.x < box.x1 + 1.0F
+         && this.y > box.y0 - 0.5F && this.y < box.y1 + 0.5F
+         && this.z > box.z0 - 1.0F && this.z < box.z1 + 1.0F;
    }
 }
 

@@ -15,5 +15,8 @@ public interface BlockView {
    default int getBlockLevel(int x, int y, int z) {
       return 0;
    }
+   default int biomeAt(int x, int z) {
+      return BiomeTints.DEFAULT_BIOME;
+   }
 }
 

@@ -13,12 +13,14 @@ import com.strata.world.Level;
 import java.nio.FloatBuffer;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL15;
 
 class MeshData {
    final float[][] verts = new float[3][];
    final float[][] texs = new float[3][];
    final float[][] cols = new float[3][];
+   final float[][] tints = new float[3][];
    final int[] counts = new int[3];
    final int version;
    int y0;
@@ -42,7 +44,7 @@ public class Chunk {
     volatile int dirtyVersion = 0;
     volatile int queueDist = Integer.MAX_VALUE;
     volatile long queueSeq = 0L;
-   static final int STRIDE_FLOATS = 8;
+   static final int STRIDE_FLOATS = 11;
    static final int STRIDE_BYTES = STRIDE_FLOATS * 4;
    private final int[] vbo = new int[3]; 
    private final int[] counts = new int[3];
@@ -128,7 +130,7 @@ public class Chunk {
                 BlockState state = data == 0 ? block.state : Blocks.stateOf(block, data);
                 block.render(builders[0], view, 0, x, y, z, state);
                 block.render(builders[1], view, 1, x, y, z, state);
-                if (tileId == Blocks.WATER_ID) {
+                if (tileId == Blocks.WATER_ID || tileId == Blocks.ICE_ID) {
                    block.render(builders[2], view, 2, x, y, z, state);
                 }
             }
@@ -136,12 +138,13 @@ public class Chunk {
       }
       for (int layer = 0; layer < 3; layer++) {
          MeshBuilder b = builders[layer];
-         m.counts[layer] = b.count();
-         if (m.counts[layer] > 0) {
-            m.verts[layer] = b.vertices();
-            m.texs[layer] = b.texCoords();
-            m.cols[layer] = b.colors();
-         }
+          m.counts[layer] = b.count();
+          if (m.counts[layer] > 0) {
+             m.verts[layer] = b.vertices();
+             m.texs[layer] = b.texCoords();
+             m.cols[layer] = b.colors();
+             m.tints[layer] = b.tints();
+          }
       }
       int lo = this.level.depth;
       int hi = 0;
@@ -185,16 +188,24 @@ public class Chunk {
         }
      }
 
-    private void uploadInner(MeshData m) {
-      long t0 = System.nanoTime();
-      for (int layer = 0; layer < 3; layer++) {
-         this.counts[layer] = m.counts[layer];
-         if (m.counts[layer] == 0) {
-            continue;
-         }
+     private void uploadInner(MeshData m) {
+       long t0 = System.nanoTime();
+       for (int layer = 0; layer < 3; layer++) {
+          this.counts[layer] = m.counts[layer];
+          if (m.counts[layer] == 0) {
+             if (this.vbo[layer] != 0) {
+                java.nio.IntBuffer ids = BufferUtils.createIntBuffer(1);
+                ids.put(this.vbo[layer]);
+                ids.flip();
+                GL15.glDeleteBuffers(ids);
+                GlResources.release(this.vbo[layer]);
+                this.vbo[layer] = 0;
+             }
+             continue;
+          }
          this.ensureVbo(layer);
          GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, this.vbo[layer]);
-         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, stage(interleave(m.verts[layer], m.texs[layer], m.cols[layer], m.counts[layer])), GL15.GL_STATIC_DRAW);
+         GL15.glBufferData(GL15.GL_ARRAY_BUFFER, stage(interleave(m.verts[layer], m.texs[layer], m.cols[layer], m.tints[layer], m.counts[layer])), GL15.GL_STATIC_DRAW);
       }
       GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
       uploadNs += System.nanoTime() - t0;
@@ -223,17 +234,20 @@ public class Chunk {
       return staging;
    }
 
-   static float[] interleave(float[] verts, float[] texs, float[] cols, int count) {
+   static float[] interleave(float[] verts, float[] texs, float[] cols, float[] tints, int count) {
       float[] out = new float[count * STRIDE_FLOATS];
       for (int i = 0; i < count; i++) {
-         out[i * 8] = verts[i * 3];
-         out[i * 8 + 1] = verts[i * 3 + 1];
-         out[i * 8 + 2] = verts[i * 3 + 2];
-         out[i * 8 + 3] = texs[i * 2];
-         out[i * 8 + 4] = texs[i * 2 + 1];
-         out[i * 8 + 5] = cols[i * 3];
-         out[i * 8 + 6] = cols[i * 3 + 1];
-         out[i * 8 + 7] = cols[i * 3 + 2];
+         out[i * 11] = verts[i * 3];
+         out[i * 11 + 1] = verts[i * 3 + 1];
+         out[i * 11 + 2] = verts[i * 3 + 2];
+         out[i * 11 + 3] = texs[i * 2];
+         out[i * 11 + 4] = texs[i * 2 + 1];
+         out[i * 11 + 5] = cols[i * 3];
+         out[i * 11 + 6] = cols[i * 3 + 1];
+         out[i * 11 + 7] = cols[i * 3 + 2];
+         out[i * 11 + 8] = tints[i * 3];
+         out[i * 11 + 9] = tints[i * 3 + 1];
+         out[i * 11 + 10] = tints[i * 3 + 2];
       }
       return out;
    }
@@ -248,6 +262,7 @@ public class Chunk {
       if (!fullBright) {
          GL11.glColorPointer(3, GL11.GL_FLOAT, STRIDE_BYTES, 5 * 4L);
       }
+      GL14.glSecondaryColorPointer(3, GL11.GL_FLOAT, STRIDE_BYTES, 8 * 4L);
       GL11.glDrawArrays(GL11.GL_QUADS, 0, this.counts[layer]);
    }
 

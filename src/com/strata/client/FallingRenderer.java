@@ -36,7 +36,7 @@ public class FallingRenderer {
       }
    }
 
-   public void render() {
+   public void render(float a) {
       if (this.falling.isEmpty()) {
          return;
       }
@@ -51,7 +51,10 @@ public class FallingRenderer {
          }
          float br = this.level.getBrightness(MathHelper.floor(e.x), MathHelper.floor(e.y), MathHelper.floor(e.z));
          this.scratch.init();
-         ItemRenderer.emitCube(this.scratch, (CubeBlock)b, e.x, e.y, e.z, 0.50F, 0.0, br);
+         float ix = e.xo + (e.x - e.xo) * a;
+         float iy = e.yo + (e.y - e.yo) * a;
+         float iz = e.zo + (e.z - e.zo) * a;
+         ItemRenderer.emitCube(this.scratch, (CubeBlock)b, ix, iy, iz, 0.50F, 0.0, br);
          t.drain(this.scratch);
       }
       t.flush();

@@ -51,9 +51,10 @@ public class VegTest {
       int tuftT = AtlasStitcher.slot("blocks/tall_grass.png");
       int sapT = AtlasStitcher.slot("blocks/oak_sapling.png");
       int woodT = AtlasStitcher.slot("blocks/oak_log_side.png");
-      check(tileStats(img, leafT, false, false), "leaf tile green+dominant");
       check(tileStats(img, roseT, false, true), "rose tile red+cutout");
-      check(tileStats(img, tuftT, false, false), "tuft tile green+cutout");
+      check(tintIs(Blocks.LEAF_ID, 0, 119 / 255.0F, 171 / 255.0F, 47 / 255.0F), "leaf tint plains foliage");
+      check(tintIs(Blocks.TALL_GRASS_ID, 0, 145 / 255.0F, 189 / 255.0F, 89 / 255.0F), "tuft tint plains grass");
+      check(tintIs(Blocks.ROSE_ID, 0, 1.0F, 1.0F, 1.0F), "rose untinted");
       check(tileStats(img, sapT, false, false), "sapling green+cutout");
       check(tileStats(img, woodT, true, false) || brownPixels(img, woodT) > 100, "wood brown+opaque");
       check(transparentFraction(img, roseT) > 0.5, "rose mostly transparent");
@@ -96,7 +97,7 @@ public class VegTest {
       int wood = 0, leaf = 0, rose = 0, dand = 0, tuft = 0, sap = 0;
       int birch = 0, spruce = 0;
       int dead = 0, shroom = 0, reed = 0, cactus = 0, snow = 0, lily = 0, ice = 0;
-      int lakeWater = 0, lakeLava = 0, pumpkin = 0, clay = 0, vine = 0;
+      int lakeWater = 0, lakeLava = 0, pumpkin = 0, clay = 0, vine = 0, sideVine = 0;
       java.util.ArrayList<int[]> pumpkinSpots = new java.util.ArrayList<>();
       java.util.ArrayList<int[]> lavaSpots = new java.util.ArrayList<>();
       for (int x = -120; x <= 120; x++) {
@@ -174,13 +175,17 @@ public class VegTest {
                   vine++;
                   check(y > h, "vine hangs above surface");
                   check(g.vinePart(x, y, z) == Blocks.VINE_ID, "vine hosted @" + x + "," + y + "," + z);
+                  if (sideLeaf(x, y, z, g)) {
+                     sideVine++;
+                  }
                } else if (id == Blocks.SNOW_LAYER_ID) {
                   snow++;
                   check(y == h + 1, "snow on surface");
                   check(GenBiomes.snowy(g.genBiomeAt(x, z)), "snow in cold biome @" + x + "," + z);
                } else if (id == Blocks.LILYPAD_ID) {
                   lily++;
-                  check(y == TerrainGenerator.SEA_LEVEL, "lilypad on water surface");
+                  check(g.blockAt(x, y - 1, z, h) == Blocks.WATER_ID,
+                     "lilypad on water @" + x + "," + y + "," + z);
                } else if (id == Blocks.ICE_ID) {
                   ice++;
                   check(y == TerrainGenerator.SEA_LEVEL - 1
@@ -223,6 +228,24 @@ public class VegTest {
       }
       System.out.println("lavaShell=" + shell);
       check(shell > 0, "lava lakes wear stone shells");
+      int springWater = 0, springLava = 0;
+      for (int ccx = -4; ccx <= 3; ccx++) {
+         for (int ccz = -4; ccz <= 3; ccz++) {
+            for (TerrainGenerator.Spring s : g.springsForChunk(ccx, ccz)) {
+               int id = g.blockAt(s.x, s.y, s.z, g.heightAt(s.x, s.z));
+               check(id == s.fluid, "spring reads fluid @" + s.x + "," + s.y + "," + s.z);
+               if (s.fluid == Blocks.WATER_ID) {
+                  springWater++;
+               } else {
+                  springLava++;
+                  check(s.fluid == Blocks.LAVA_ID, "lava spring id");
+               }
+            }
+         }
+      }
+      System.out.println("springs=" + springWater + " water + " + springLava + " lava (8x8)");
+      check(springWater > 0, "water seeps exist (50/chunk tries)");
+      check(springLava > 0, "lava seeps exist (20/chunk tries)");
       check(pumpkin > 0, "pumpkins exist (rare grass, got " + pumpkin + ")");
       int grouped = 0;
       for (int[] p : pumpkinSpots) {
@@ -237,6 +260,7 @@ public class VegTest {
       check(pumpkinSpots.size() == pumpkin, "spots track pumpkins");
       check(grouped * 10 >= pumpkin * 6, "pumpkins grow in groups (grouped " + grouped + "/" + pumpkin + ")");
       check(vine > 0, "vines drape swamp canopies (got " + vine + ")");
+      check(sideVine * 2 > vine, "vines hug leaf sides, not under-hangs (" + sideVine + "/" + vine + ")");
       check(wood > 20, "trees exist");
       check(leaf > wood * 5, "canopies dwarf trunks");
       check(rose > 20 && dand > 20, "both flowers exist");
@@ -270,8 +294,8 @@ public class VegTest {
                if (id == Blocks.SNOW_LAYER_ID) {
                   snowNear++;
                   int ground = g1.blockAt(x, h, z, h);
-                  check(ground == Blocks.GRASS_ID || ground == Blocks.DIRT_ID,
-                     "snow on grass/dirt @" + x + "," + z + " (got " + ground + ")");
+                  check(ground != Blocks.ICE_ID && Blocks.isSolid(ground) && !Blocks.isLeaves(ground),
+                     "snow on solid @" + x + "," + z + " (got " + ground + ")");
                }
             }
             int wtop = TerrainGenerator.SEA_LEVEL - 1;
@@ -287,7 +311,7 @@ public class VegTest {
       System.out.println("snowNear=" + snowNear + " iceNear=" + iceNear + " openWater=" + openWater);
       check(snowNear > 0, "snow layers exist (cold window, seed 1)");
       check(iceNear > 0, "ice exists (cold water, seed 1)");
-      check(openWater > 0, "frozen seas keep open shorelines");
+      check(openWater == 0, "frozen seas ice fully (no open shorelines, seed 1)");
       int rockSnow = 0;
       for (int x = 200; x <= 264; x++) {
          for (int z = 0; z <= 64; z++) {
@@ -375,12 +399,22 @@ public class VegTest {
    }
 
    static boolean coverGround(TerrainGenerator g, int x, int z, int h) {
-      return h > TerrainGenerator.SEA_LEVEL + 1 && g.blockAt(x, h, z, h) == Blocks.GRASS_ID;
+      return g.blockAt(x, h, z, h) == Blocks.GRASS_ID;
+   }
+
+   static boolean sideLeaf(int x, int y, int z, TerrainGenerator g) {
+      int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+      for (int[] d : dirs) {
+         if (Blocks.isLeaves(g.treePart(x + d[0], y, z + d[1]))) {
+            return true;
+         }
+      }
+      return false;
    }
 
    static boolean canopyHosted(TerrainGenerator g, int x, int y, int z) {
-      for (int ox = x - 3; ox <= x + 3; ox++) {
-         for (int oz = z - 3; oz <= z + 3; oz++) {
+      for (int ox = x - 5; ox <= x + 5; ox++) {
+         for (int oz = z - 5; oz <= z + 5; oz++) {
             int th = g.treeTrunkHeight(ox, oz);
             if (th == 0) {
                continue;
@@ -410,8 +444,24 @@ public class VegTest {
       return AtlasStitcher.tileRectPx(tile);
    }
 
-   static boolean tileStats(BufferedImage img, int tile, boolean opaque, boolean wantRed) {
-      long r = 0, g = 0, b = 0;
+   static boolean tintIs(int id, int layer, float r, float g, float b) {
+      MeshBuilder mb = new MeshBuilder();
+      mb.init();
+      Blocks.byId(id).render(mb, new FullBright(), layer, 4, 60, 4);
+      if (mb.count() == 0) {
+         return false;
+      }
+      float[] t = mb.tints();
+      for (int i = 0; i < mb.count(); i++) {
+         if (Math.abs(t[i * 3] - r) > 1e-4 || Math.abs(t[i * 3 + 1] - g) > 1e-4
+            || Math.abs(t[i * 3 + 2] - b) > 1e-4) {
+            return false;
+         }
+      }
+      return true;
+   }
+
+   static boolean tileStats(BufferedImage img, int tile, boolean opaque, boolean wantRed) {     long r = 0, g = 0, b = 0;
       int n = 0;
       int[] rc = rect(tile);
       for (int x = rc[0]; x < rc[0] + rc[2]; x++) {

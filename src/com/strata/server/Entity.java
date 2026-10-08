@@ -90,7 +90,7 @@ public class Entity {
          boolean settled = this.stepLeg(0.0F, -this.stepHeight, 0.0F);
          float steppedX = this.bb.x0 - sx0;
          float steppedZ = this.bb.z0 - sz0;
-         if (steppedX * steppedX + steppedZ * steppedZ >= directX * directX + directZ * directZ) {
+         if (steppedX * steppedX + steppedZ * steppedZ > directX * directX + directZ * directZ) {
             this.onGround = settled;
             this.xd = sxd;
             this.zd = szd;

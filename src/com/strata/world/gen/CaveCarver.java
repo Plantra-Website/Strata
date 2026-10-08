@@ -12,7 +12,7 @@ public class CaveCarver {
    private final int depth;
    private final ConcurrentHashMap<Long, RegionCarves> regions = new ConcurrentHashMap<>();
 
-   private record RegionCarves(LongLongMap masks) {
+   private record RegionCarves(LongLongMap lo, LongLongMap hi) {
    }
 
    public CaveCarver(long seed, int depth) {
@@ -52,8 +52,8 @@ public class CaveCarver {
              return r;
           });
        }
-       long mask = rc.masks.get(columnKey(x, z));
-       return (mask & (1L << y)) != 0L;
+       long mask = (y < 64 ? rc.lo() : rc.hi()).get(columnKey(x, z));
+       return (mask & (1L << (y < 64 ? y : y - 64))) != 0L;
    }
 
    public int evictFar(int pcx, int pcz, int keepChunks) {
@@ -76,8 +76,9 @@ public class CaveCarver {
    }
 
     private RegionCarves carveRegion(int rx, int rz) {
-       LongLongMap masks = new LongLongMap(1 << 15);
-       Caver caver = new Caver(masks, rx, rz);
+       LongLongMap lo = new LongLongMap(1 << 15);
+       LongLongMap hi = new LongLongMap(1 << 12);
+       Caver caver = new Caver(lo, hi, rx, rz);
       int minCx = rx * REGION - REACH_CHUNKS;
       int maxCx = rx * REGION + REGION + REACH_CHUNKS;
       int minCz = rz * REGION - REACH_CHUNKS;
@@ -91,6 +92,9 @@ public class CaveCarver {
             }
             for (int s = 0; s < systems; s++) {
                double x = ccx * 16 + rand.nextInt(16);
+               if (this.depth <= 8) {
+                  continue;
+               }
                double y = rand.nextInt(rand.nextInt(this.depth - 8) + 8);
                double z = ccz * 16 + rand.nextInt(16);
                int worms = 1;
@@ -112,16 +116,18 @@ public class CaveCarver {
             }
          }
       }
-      return new RegionCarves(masks);
+      return new RegionCarves(lo, hi);
    }
 
     private class Caver {
-       private final LongLongMap masks;
+       private final LongLongMap lo;
+       private final LongLongMap hi;
        private final int rx;
        private final int rz;
 
-       Caver(LongLongMap masks, int rx, int rz) {
-         this.masks = masks;
+       Caver(LongLongMap lo, LongLongMap hi, int rx, int rz) {
+         this.lo = lo;
+         this.hi = hi;
          this.rx = rx;
          this.rz = rz;
       }
@@ -225,15 +231,24 @@ public class CaveCarver {
                 double dyMax = vRadius * Math.sqrt(1.0 - horizontal);
                 int cy1 = (int)Math.min(depth - 8, Math.floor(y + dyMax));
                 int cy0 = (int)Math.max(1, Math.ceil(y - 0.7D * vRadius));
-                long bits = 0L;
+                long loBits = 0L;
+                long hiBits = 0L;
                 for (int cy = cy1; cy >= cy0; cy--) {
                    double ny = (cy + 0.5 - y) / vRadius;
                    if (ny > -0.7D && nxx + ny * ny + nz * nz < 1.0D) {
-                      bits |= 1L << cy;
+                      if (cy < 64) {
+                         loBits |= 1L << cy;
+                      } else {
+                         hiBits |= 1L << (cy - 64);
+                      }
                    }
                 }
-                if (bits != 0L) {
-                   this.masks.orBits(columnKey(cx, cz), bits);
+                long key = columnKey(cx, cz);
+                if (loBits != 0L) {
+                   this.lo.orBits(key, loBits);
+                }
+                if (hiBits != 0L) {
+                   this.hi.orBits(key, hiBits);
                 }
              }
           }

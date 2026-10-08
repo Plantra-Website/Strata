@@ -42,6 +42,7 @@ public class NbtTest {
     }
 
     public static void main(String[] args) throws Exception {
+        com.strata.server.ItemTest.wipeDir(new File("nbttest-region"));
         NBT.CompoundTag root = chunkPayload(-5, 17);
         NBT.CompoundTag back = fromBytes(toBytes(root));
         NBT.CompoundTag lvl = back.compound("Level");
@@ -58,7 +59,7 @@ public class NbtTest {
         check(((NBT.StringTag)lvl.get("Name")).value.equals("test"), "string tag");
         System.out.println("nbt ok");
 
-        File dir = new File("region");
+        File dir = new File("nbttest-region");
         RegionFile r = new RegionFile(new File(dir, "r.0.0.mca"));
         check(!r.hasChunk(0, 0), "missing chunk absent");
         byte[] a = toBytes(chunkPayload(3, 7));
@@ -112,12 +113,46 @@ public class NbtTest {
         rc.close();
         System.out.println("compact ok");
 
+        File torn = new File(dir, "r.7.7.mca");
+        java.io.FileOutputStream tornOut = new java.io.FileOutputStream(torn);
+        tornOut.write(new byte[100]);
+        tornOut.close();
+        boolean threw = false;
+        try {
+           new RegionFile(torn);
+        } catch (java.io.IOException e) {
+           threw = true;
+        }
+        check(threw, "short region file throws");
+        boolean capped = false;
+        try {
+           NBT.readRoot(new DataInputStream(new ByteArrayInputStream(oversizeRoot())));
+        } catch (java.io.IOException e) {
+           capped = true;
+        } catch (OutOfMemoryError e) {
+           capped = false;
+        }
+        check(capped, "oversize NBT stays IOException");
+
         if (failures == 0) System.out.println("ALL PASS");
         else { System.out.println(failures + " FAILURES"); System.exit(1); }
     }
 
     static NBT.Tag secs_check(NBT.CompoundTag root, int s) {
         return ((NBT.ListTag)root.compound("Level").get("Sections")).value.get(s);
+    }
+
+    static byte[] oversizeRoot() throws Exception {
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(b);
+        out.writeByte(10);
+        out.writeUTF("");
+        out.writeByte(7);
+        out.writeUTF("x");
+        out.writeInt(1 << 20);
+        out.writeByte(0);
+        out.close();
+        return b.toByteArray();
     }
 }
 

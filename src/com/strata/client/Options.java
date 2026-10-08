@@ -27,6 +27,7 @@ public class Options {
    public int viewRadius = Config.VIEW_RADIUS;
    public float sensitivity = 1.0F;
    public int guiScale = 0;
+   public boolean tintBlend = Config.TINT_BLEND;
 
    public static Options load(File file) {
       Options o = new Options();
@@ -69,6 +70,14 @@ public class Options {
             this.guiScale = Integer.parseInt(value);
             return;
          }
+         if (name.equals("tintBlend")) {
+            if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
+               this.tintBlend = Boolean.parseBoolean(value);
+               return;
+            }
+            Log.warn("options", "bad value '" + value + "' for tintBlend, keeping default");
+            return;
+         }
          int key = Keyboard.getKeyIndex(value);
          if (key == Keyboard.KEY_NONE) {
             Log.warn("options", "unknown key '" + value + "' for " + name + ", keeping default");
@@ -102,8 +111,9 @@ public class Options {
    }
 
    public void save(File file) {
+      File tmp = new File(file.getAbsolutePath() + ".tmp");
       try {
-         PrintWriter out = new PrintWriter(new FileWriter(file));
+         PrintWriter out = new PrintWriter(new FileWriter(tmp));
          out.println("# Strata options — key names like KEY_W, KEY_SPACE (LWJGL Keyboard).");
          out.println("# Unknown names/values fall back to defaults; delete to regenerate.");
          out.println("keyFwd=" + Keyboard.getKeyName(this.keyFwd));
@@ -123,7 +133,12 @@ public class Options {
          out.println("viewRadius=" + this.viewRadius);
          out.println("sensitivity=" + this.sensitivity);
          out.println("guiScale=" + this.guiScale);
+         out.println("tintBlend=" + this.tintBlend);
          out.close();
+         if (!tmp.renameTo(file)) {
+            Log.error("options", "save rename failed");
+            tmp.delete();
+         }
       } catch (Exception e) {
          Log.error("options", "save failed", e);
       }

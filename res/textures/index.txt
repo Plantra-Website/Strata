@@ -40,9 +40,9 @@ blocks/dirt3.png
 blocks/dirt4.png
 blocks/gold_ore.png
 blocks/gold_ore1.png
+blocks/grass_side.png
 blocks/grass_side_overlay.png
 blocks/grass_side_snowed.png
-blocks/grass_side.png
 blocks/grass_top.png
 blocks/grass_top1.png
 blocks/grass_top2.png
@@ -73,6 +73,7 @@ blocks/oak_planks.png
 blocks/oak_planks1.png
 blocks/oak_planks2.png
 blocks/oak_sapling.png
+blocks/obsidian.png
 blocks/pumpkin_face_off.png
 blocks/pumpkin_face_on.png
 blocks/pumpkin_side.png
@@ -119,8 +120,8 @@ blocks/vine.png
 blocks/water_flow.png
 blocks/water_overlay.png
 blocks/water_still.png
-blocks/waterlily_flowers.png
 blocks/waterlily.png
+blocks/waterlily_flowers.png
 clouds.png
 foliage.png
 grass.png

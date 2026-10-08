@@ -97,6 +97,21 @@ public class TorchFaceTest {
         noTorchLayer.init();
         Blocks.byId(Blocks.TORCH_ID).render(noTorchLayer, l, 1, bx, by + 1, bz);
         check(noTorchLayer.count() == 0, "torch only on lit layer");
+        l.setTile(bx, by + 1, bz, Blocks.TORCH_ID);
+        MeshBuilder wall = new MeshBuilder();
+        wall.init();
+        com.strata.blocks.Block torchBlock = Blocks.byId(Blocks.TORCH_ID);
+        torchBlock.render(wall, l, 0, bx, by + 1, bz, Blocks.stateOf(torchBlock, 2));
+        check(wall.count() == 40, "wall tube 4 sides + cap x both windings (" + wall.count() + " verts)");
+        float[] wv = wall.vertices();
+        for (int i = 0; i < wall.count(); i++) {
+           float px = wv[i * 3] - bx;
+           float pz = wv[i * 3 + 2] - bz;
+           float py = wv[i * 3 + 1] - (by + 1);
+           check(px >= 0.375F - 0.01F && px <= 0.625F + 0.01F, "wall tube x in 2px column (" + px + ")");
+           check(pz >= 0.55F && pz <= 1.0F + 0.01F, "wall tube z leans wall-to-room (" + pz + ")");
+           check(py >= 0.2F - 0.01F && py <= 0.8F + 0.01F, "wall tube y 0.2..0.8 (" + py + ")");
+        }
         l.setTile(bx, by + 1, bz, 0);
         System.out.println(bright && failures == 0 ? "TORCHFACE PASS" : "TORCHFACE FAIL");
         if (failures > 0) System.exit(1);

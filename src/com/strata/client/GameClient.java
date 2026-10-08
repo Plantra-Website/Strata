@@ -88,6 +88,7 @@ public class GameClient implements Runnable {
    private boolean showDebug = false;
    private int fps = 0;
    private boolean leftDown = false;
+   private boolean prevResetDown = false;
    private boolean lastActive = true;
    private boolean mouseReleased = false;
    private java.io.File worldDir = new java.io.File(DEFAULT_WORLD);
@@ -162,6 +163,7 @@ public class GameClient implements Runnable {
       BlockTags.load();
       this.options = Options.load(new File("options.txt"));
       Config.VIEW_RADIUS = this.options.viewRadius;
+      Config.TINT_BLEND = this.options.tintBlend;
       Log.info("options", "viewRadius=" + Config.VIEW_RADIUS + " sensitivity=" + this.options.sensitivity);
       int col = 920330;
       this.fogColor.put(new float[]{(col >> 16 & 0xFF) / 255.0F, (col >> 8 & 0xFF) / 255.0F, (col & 0xFF) / 255.0F, 1.0F});
@@ -325,11 +327,17 @@ public class GameClient implements Runnable {
    }
 
    public void destroy() {
-      this.server.save();
-      this.options.save(new File("options.txt"));
-      Mouse.destroy();
-      Keyboard.destroy();
-      Display.destroy();
+      try {
+         this.server.save();
+      } finally {
+         try {
+            this.options.save(new File("options.txt"));
+         } finally {
+            Mouse.destroy();
+            Keyboard.destroy();
+            Display.destroy();
+         }
+      }
    }
 
    @Override
@@ -360,6 +368,8 @@ public class GameClient implements Runnable {
                    Mouse.setCursorPosition(this.width / 2, this.height / 2);
                    Mouse.setGrabbed(true);
                    while (Mouse.next()) {
+                   }
+                   while (Keyboard.next()) {
                    }
                    this.leftDown = Mouse.isButtonDown(0);
                    Mouse.getDX();
@@ -414,7 +424,11 @@ public class GameClient implements Runnable {
       InputState in = new InputState();
       in.yaw = this.player.yRot;
       in.pitch = this.player.xRot;
-      if (this.inventoryOpen) {
+      boolean resetDown = Display.isActive() && !this.inventoryOpen
+         && Keyboard.isKeyDown(this.options.keyRespawn);
+      in.reset = resetDown && !this.prevResetDown;
+      this.prevResetDown = resetDown;
+      if (this.inventoryOpen || !Display.isActive()) {
          return in;
       }
       in.fwd = Keyboard.isKeyDown(200) || Keyboard.isKeyDown(this.options.keyFwd);
@@ -422,7 +436,6 @@ public class GameClient implements Runnable {
       in.left = Keyboard.isKeyDown(203) || Keyboard.isKeyDown(this.options.keyLeft);
       in.right = Keyboard.isKeyDown(205) || Keyboard.isKeyDown(this.options.keyRight);
       in.jump = Keyboard.isKeyDown(this.options.keyJump) || Keyboard.isKeyDown(219);
-      in.reset = Keyboard.isKeyDown(this.options.keyRespawn);
       in.up = Keyboard.isKeyDown(this.options.keyJump);
       in.down = Keyboard.isKeyDown(this.options.keyDown) || Keyboard.isKeyDown(54);
       in.breaking = this.leftDown && this.hitResult != null;
@@ -473,7 +486,7 @@ public class GameClient implements Runnable {
 
    public void tick() {
       this.particleEngine.tick();
-      this.itemRenderer.tick(this.player.x, this.player.y, this.player.z);
+      this.itemRenderer.tick(this.player.bb);
       this.fallingRenderer.tick();
 
       if (this.leftDown && this.hitResult != null) {
@@ -561,7 +574,7 @@ public class GameClient implements Runnable {
       float ex = this.player.xo + (this.player.x - this.player.xo) * a;
       float ey = this.player.yo + (this.player.y - this.player.yo) * a;
       float ez = this.player.zo + (this.player.z - this.player.zo) * a;
-      this.hitResult = Raycaster.pick(this.level, ex, ey, ez, this.player.yRot, this.player.xRot, 5.0);
+      this.hitResult = Raycaster.pick(this.level, ex, ey, ez, this.player.yRot, this.player.xRot, 4.0);
    }
 
    public void render(float a) throws IOException {
@@ -579,14 +592,14 @@ public class GameClient implements Runnable {
       long r0 = System.nanoTime();
       float xo = Mouse.getDX() * this.options.sensitivity;
       float yo = Mouse.getDY() * this.options.sensitivity;
-      if (!this.inventoryOpen) {
+      if (!this.inventoryOpen && Display.isActive()) {
          this.player.turn(xo, yo);
       }
       this.pick(a);
       long r1 = System.nanoTime();
 
       int dWheel = Mouse.getDWheel();
-      if (dWheel != 0) {
+      if (dWheel != 0 && !this.inventoryOpen && Display.isActive()) {
          if (dWheel > 0) {
             this.selectedSlot = (this.selectedSlot - 1 + 9) % 9;
          } else {
@@ -624,13 +637,19 @@ public class GameClient implements Runnable {
             place.z = this.hitResult.z;
             place.face = this.hitResult.f;
             place.blockId = this.paintTile;
+            place.slot = this.selectedSlot;
             this.conn.sendToServer(place);
          }
       }
 
       while (Keyboard.next()) {
          if (Keyboard.getEventKeyState()) {
-            if (Keyboard.getEventKey() >= Keyboard.KEY_1 && Keyboard.getEventKey() <= Keyboard.KEY_9) {
+            int key = Keyboard.getEventKey();
+            if ((this.inventoryOpen || !Display.isActive())
+               && key != this.options.keyRelease && key != this.options.keyInventory) {
+               continue;
+            }
+            if (key >= Keyboard.KEY_1 && key <= Keyboard.KEY_9) {
                this.selectedSlot = Keyboard.getEventKey() - Keyboard.KEY_1;
                this.updateSelectedTile();
             }
@@ -674,13 +693,15 @@ public class GameClient implements Runnable {
                Log.info("debug", "overlay " + (this.showDebug ? "ON" : "OFF"));
             }
 
-            if (Keyboard.getEventKey() == Keyboard.KEY_LBRACKET) {
+            if (key == Keyboard.KEY_LBRACKET) {
                Config.VIEW_RADIUS = Math.max(2, Config.VIEW_RADIUS - 1);
+               this.options.viewRadius = Config.VIEW_RADIUS;
                Log.info("debug", "render distance " + Config.VIEW_RADIUS);
             }
 
-            if (Keyboard.getEventKey() == Keyboard.KEY_RBRACKET) {
+            if (key == Keyboard.KEY_RBRACKET) {
                Config.VIEW_RADIUS = Math.min(10, Config.VIEW_RADIUS + 1);
+               this.options.viewRadius = Config.VIEW_RADIUS;
                Log.info("debug", "render distance " + Config.VIEW_RADIUS);
             }
 
@@ -762,7 +783,7 @@ public class GameClient implements Runnable {
 
       this.particleEngine.render(this.player, a, 0);
       this.itemRenderer.render(this.player, a);
-      this.fallingRenderer.render();
+      this.fallingRenderer.render(a);
       long rPart = System.nanoTime();
 
       GL11.glDisable(GL11.GL_FOG);

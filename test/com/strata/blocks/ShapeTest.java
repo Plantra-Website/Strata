@@ -61,6 +61,22 @@ public class ShapeTest {
       }
       {
          Bright v = new Bright();
+         v.set(0, 11, 0, Blocks.VINE_ID);
+         v.set(0, 11, -1, Blocks.STONE_ID);
+         v.set(0, 10, 0, Blocks.VINE_ID);
+         MeshBuilder b = new MeshBuilder();
+         b.init();
+         Blocks.byId(Blocks.VINE_ID).render(b, v, 0, 0, 10, 0);
+         check(b.count() == 8, "chained vine inherits one strip (got " + b.count() + ")");
+         float[] verts = b.vertices();
+         for (int i = 0; i < verts.length; i += 3) {
+            float vx = verts[i], vz = verts[i + 2];
+            check(vx <= 0.06F || vx >= 0.94F || vz <= 0.06F || vz >= 0.94F,
+               "vine quads hug faces, never diagonals (got " + vx + "," + vz + ")");
+         }
+      }
+      {
+         Bright v = new Bright();
          v.set(0, 10, 0, Blocks.LILYPAD_ID);
          MeshBuilder b = new MeshBuilder();
          b.init();
@@ -85,7 +101,15 @@ public class ShapeTest {
          }
          check(maxY <= 10.13F, "snow stays thin (top " + maxY + ")");
       }
-      check(Blocks.byId(Blocks.VINE_ID).pickBox(0, 10, 0) != null, "vine pickable");
+      {
+         Bright v = new Bright();
+         v.set(0, 10, 0, Blocks.VINE_ID);
+         v.set(0, 10, -1, Blocks.STONE_ID);
+         com.strata.core.AABB walled = Blocks.byId(Blocks.VINE_ID).pickBox(v, 0, 10, 0);
+         check(walled != null, "vine pickable");
+         check(Math.abs(walled.z0 - 0.05F) < 0.001F, "walled vine box hugs its face (got " + walled.z0 + ")");
+         check(walled.x0 == 0.0F && walled.x1 == 1.0F && walled.z1 == 1.0F, "vine box spans the cell elsewhere");
+      }
       check(Blocks.byId(Blocks.LILYPAD_ID).pickBox(0, 10, 0).y1 <= 10.3F, "lily pick thin");
       check(Blocks.byId(Blocks.SNOW_LAYER_ID).pickBox(0, 10, 0).y1 <= 10.3F, "snow pick thin");
       {

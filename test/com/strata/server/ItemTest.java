@@ -63,6 +63,24 @@ public class ItemTest {
       }
    }
 
+   public static void wipeDir(File dir) {
+      if (dir == null) {
+         return;
+      }
+      if (dir.isFile()) {
+         dir.delete();
+         return;
+      }
+      File[] kids = dir.listFiles();
+      if (kids == null) {
+         return;
+      }
+      for (File k : kids) {
+         wipeDir(k);
+      }
+      dir.delete();
+   }
+
    public static void main(String[] args) {
       Inventory inv = new Inventory();
       check(inv.add(Blocks.DIRT_ID, 70), "70 fits two slots");
@@ -112,6 +130,7 @@ public class ItemTest {
          }
       }
 
+      wipeDir(new File("itemworld"));
       File dir = new File("itemworld");
       LocalConnection conn = new LocalConnection();
       GameServer s = new GameServer(conn, dir, 444L);
@@ -194,6 +213,7 @@ public class ItemTest {
       check(sameStock, "stock survives reboot");
       check(re.level().getTile(bx, bh, bz) == 0, "break survives reboot");
 
+      wipeDir(new File("giveworld"));
       File dir2 = new File("giveworld");
       LocalConnection conn2 = new LocalConnection();
       GameServer g = new GameServer(conn2, dir2, 777L);

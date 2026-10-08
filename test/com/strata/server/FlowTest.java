@@ -25,6 +25,10 @@ public class FlowTest {
    }
 
    public static void main(String[] args) {
+      ItemTest.wipeDir(new File("flowworld"));
+      ItemTest.wipeDir(new File("flowworld2"));
+      ItemTest.wipeDir(new File("flowworld3"));
+      ItemTest.wipeDir(new File("flowworld4"));
       File dir = new File("flowworld");
       LocalConnection conn = new LocalConnection();
       GameServer s = new GameServer(conn, dir, 7777L);
@@ -77,11 +81,11 @@ public class FlowTest {
 
       int fx = x + 24;
       int fh = ItemTest.surface(s.level(), fx, z);
-      for (int dx = -4; dx <= 4; dx++) {
-         for (int dz = -4; dz <= 4; dz++) {
+      for (int dx = -6; dx <= 6; dx++) {
+         for (int dz = -6; dz <= 6; dz++) {
             s.level().setTile(fx + dx, fh + 1, z + dz, Blocks.DIRT_ID);
             s.level().setTile(fx + dx, fh + 2, z + dz, 0);
-            if (Math.abs(dx) == 4 || Math.abs(dz) == 4) {
+            if (Math.abs(dx) == 6 || Math.abs(dz) == 6) {
                s.level().setTile(fx + dx, fh + 3, z + dz, Blocks.DIRT_ID);
             } else {
                s.level().setTile(fx + dx, fh + 3, z + dz, 0);
@@ -197,6 +201,19 @@ public class FlowTest {
       check(s3.level().getTile(wx + 2, wh + 2, wz11) == Blocks.LAVA_ID, "pour lands");
       ItemTest.drain(s3, conn3, LAVA_TICKS + 20);
       check(s3.level().getTile(wx + 1, wh + 2, wz11) == Blocks.LAVA_ID, "pour spreads itself");
+
+      File dir4 = new File("flowworld4");
+      LocalConnection conn4 = new LocalConnection();
+      GameServer s4 = new GameServer(conn4, dir4, 7777L);
+      int ux = -504, uz = -498;
+      int uy = s4.level().generator().unrestFluidY(ux, uz);
+      check(uy > 0, "puncture site restless (got " + uy + ")");
+      check(s4.level().getTile(ux, uy, uz) == Blocks.WATER_ID, "surface holds pre-stream");
+      check(s4.level().getTile(ux, uy - 1, uz) == 0, "hole hovers pre-stream");
+      s4.player().teleport(ux + 0.5F, 90.0F, uz + 0.5F);
+      ItemTest.drain(s4, conn4, 300);
+      check(s4.level().getTile(ux, uy - 1, uz) == Blocks.WATER_ID, "hole streams full");
+      check(s4.level().getTile(ux, uy, uz) == Blocks.WATER_ID, "surface persists (source)");
 
       if (failures == 0) System.out.println("FLOW PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }

@@ -84,10 +84,10 @@ public class TexturePackTest {
       AtlasStitcher.stitch();
       check(AtlasStitcher.altsFor(rockSlot).length == 0, "clear drops injected alts");
 
-      check(AtlasStitcher.tintFor("blocks/grass_top12.png") == AtlasStitcher.tintFor("blocks/grass_top.png"),
-         "alt inherits base tint");
-      check(AtlasStitcher.tintFor("blocks/destroy_stage_10.png") == null, "digit tiles unaffected");
-      check(AtlasStitcher.tintFor("blocks/stone.png") == null, "untinted stays null");
+       check(AtlasStitcher.kindFor("blocks/grass_top12.png") == AtlasStitcher.kindFor("blocks/grass_top.png"),
+          "alt inherits base kind");
+       check(AtlasStitcher.kindFor("blocks/destroy_stage_10.png") == BiomeTints.NONE, "digit tiles unaffected");
+       check(AtlasStitcher.kindFor("blocks/stone.png") == BiomeTints.NONE, "untinted stays none");
       zip.delete();
 
       if (failures == 0) System.out.println("PACK PASS");

@@ -117,6 +117,11 @@ class ChunkView implements BlockView, BlockerProbe {
    }
 
    @Override
+   public int biomeAt(int x, int z) {
+      return this.level.biomeAt(x, z);
+   }
+
+   @Override
    public int getSkyLevel(int x, int y, int z) {
       return this.level.getSkyLevel(x, y, z);
    }

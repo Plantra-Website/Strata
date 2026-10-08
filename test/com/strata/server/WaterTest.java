@@ -13,6 +13,7 @@ public class WaterTest {
    }
 
    public static void main(String[] args) {
+      ItemTest.wipeDir(new File("waterworld"));
       File dir = new File("waterworld");
       LocalConnection conn = new LocalConnection();
       GameServer s = new GameServer(conn, dir, 7777L);
@@ -54,7 +55,7 @@ public class WaterTest {
       s.level().setTile(tx + 1, th + 2, z, Blocks.TORCH_ID);
       s.level().scheduleTick(tx, th + 2, z, WATER_TICKS);
       ItemTest.drain(s, conn, WATER_TICKS + 20);
-      check(s.level().getTile(tx + 1, th + 2, z) == Blocks.TORCH_ID, "torch survives the front");
+      check(s.level().getTile(tx + 1, th + 2, z) == Blocks.WATER_ID, "torch washes out");
 
       int ix = x + 32;
       int ih = ItemTest.surface(s.level(), ix, z);
@@ -83,8 +84,17 @@ public class WaterTest {
       s.level().setTile(mx + 1, mh + 2, z, Blocks.WATER_ID);
       s.level().scheduleTick(mx, mh + 2, z, com.strata.world.Level.LAVA_TICKS);
       ItemTest.drain(s, conn, com.strata.world.Level.LAVA_TICKS + 20);
-      check(s.level().getTile(mx, mh + 2, z) == Blocks.STONE_ID, "lava hardens to stone");
+      check(s.level().getTile(mx, mh + 2, z) == Blocks.OBSIDIAN_ID, "lava source hardens to obsidian");
       check(s.level().getTile(mx + 1, mh + 2, z) == Blocks.WATER_ID, "water survives mixing");
+      int fx = x + 48;
+      int fh = ItemTest.surface(s.level(), fx, z);
+      s.level().setTile(fx, fh + 1, z, Blocks.DIRT_ID);
+      s.level().setTile(fx + 1, fh + 1, z, Blocks.DIRT_ID);
+      s.level().setTile(fx, fh + 2, z, Blocks.stateOf(Blocks.byId(Blocks.LAVA_ID), 1));
+      s.level().setTile(fx + 1, fh + 2, z, Blocks.WATER_ID);
+      s.level().scheduleTick(fx, fh + 2, z, com.strata.world.Level.LAVA_TICKS);
+      ItemTest.drain(s, conn, com.strata.world.Level.LAVA_TICKS + 20);
+      check(s.level().getTile(fx, fh + 2, z) == Blocks.COBBLE_ID, "flowing lava hardens to cobble");
 
       s.save();
       GameServer re = new GameServer(new LocalConnection(), dir, null);

@@ -180,9 +180,16 @@ public class PlaceRuleTest {
       s.level().setTile(vx + 1, vh + 1, fz, Blocks.DIRT_ID);
       place(s, conn, vx + 1, vh + 1, fz, 4, Blocks.VINE_ID);
       check(s.level().getTile(vx, vh + 1, fz) == Blocks.VINE_ID, "vine on wall lands");
-      int wx = x + 54;
-      int wh = pad(s, wx, fz, Blocks.DIRT_ID);
-      s.level().setTile(wx + 1, wh + 1, fz, Blocks.DIRT_ID);
+       int wx = x + 54;
+       int wh = pad(s, wx, fz, Blocks.DIRT_ID);
+       for (int ox = -1; ox <= 2; ox++) {
+          for (int oz = -1; oz <= 1; oz++) {
+             for (int oy = 1; oy <= 6; oy++) {
+                s.level().setTile(wx + ox, wh + oy, fz + oz, 0);
+             }
+          }
+       }
+       s.level().setTile(wx + 1, wh + 1, fz, Blocks.DIRT_ID);
       place(s, conn, wx + 1, wh + 1, fz, 4, Blocks.TORCH_ID);
       check(s.level().getTile(wx, wh + 1, fz) == Blocks.TORCH_ID, "wall torch mounts");
       check(s.level().getData(wx, wh + 1, fz) == 4, "wall torch faces its wall");

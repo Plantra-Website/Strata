@@ -52,8 +52,10 @@ public class GameServer implements LevelListener {
    private long timeOfDay = 0;
    private float destroyProgress = 0.0F;
    private HitResult prevHitResult = null;
+   private int breakCooldown = 0;
    private InputState lastInput = new InputState();
    private int autosaveClock = 0;
+   private int restlessClock = 0;
 
     public GameServer(LocalConnection conn) {
        this(conn, new java.io.File("."), null);
@@ -75,14 +77,16 @@ public class GameServer implements LevelListener {
        this.packName = meta.pack == null ? "" : meta.pack;
        Rng.reseed(seed);
        this.level = new Level(Level.WORLD_DEPTH, true, new TerrainGenerator(seed, Level.WORLD_DEPTH, voidWorld), worldDir);
+       this.level.setDropSink((x, y, z, blockId) -> this.spawnDrop(x, y, z, blockId));
        this.level.loadAllRegions();
        this.level.seedEmitters();
+       this.level.reseedTicks();
        this.timeOfDay = seedOverride != null && seedOverride != meta.seed ? 0L : meta.time;
        PlayerData resume = PlayerData.load(this.worldDir);
        if (resume.present) {
           this.inventory.applySync(resume.blocks, resume.counts);
           this.held.blockId = resume.heldBlock;
-          this.held.count = resume.heldCount;
+          this.held.count = Math.min(resume.heldCount, ItemStack.MAX);
           if (this.held.count <= 0) {
              this.held.clear();
           }
@@ -94,7 +98,7 @@ public class GameServer implements LevelListener {
        }
        this.player = new Player(this.level);
        if (resume.present) {
-          this.player.teleport(resume.x, resume.y, resume.z);
+          this.player.teleport(resume.x, resume.y - Player.EYE_HEIGHT, resume.z);
           this.player.yRot = resume.yaw;
           this.player.xRot = resume.pitch;
           this.player.hp = resume.hp;
@@ -242,12 +246,28 @@ public class GameServer implements LevelListener {
        if (this.player.hp <= 0) {
           Log.info("game", "player died; respawning");
           this.player.respawn();
+          this.destroyProgress = 0.0F;
+          this.prevHitResult = null;
+          this.breakCooldown = 0;
        }
       this.tickBreaking(this.lastInput);
       this.tickItems();
       this.tickFallings();
        this.level.tickBlockEntities();
        this.level.tickScheduled();
+       for (long key : this.level.drainFluidSupport(256)) {
+          int ex = (int)(key >> 38);
+          if ((ex & 0x2000000) != 0) {
+             ex |= ~0x3FFFFFF;
+          }
+          int ez = (int)((key >> 12) & 0x3FFFFFF);
+          if ((ez & 0x2000000) != 0) {
+             ez |= ~0x3FFFFFF;
+          }
+          int ey = (int)(key & 0xFFF);
+          this.notifySupport(ex, ey, ez);
+          this.popUnsupported(ex, ey, ez);
+       }
        Profiler.pop();
 
       PlayerState state = new PlayerState();
@@ -271,12 +291,21 @@ public class GameServer implements LevelListener {
          this.save();
          Log.info("world", "autosaved (t=" + this.timeOfDay + ")");
       }
+      if (++this.restlessClock >= 15) {
+         this.restlessClock = 0;
+         int pcx = Math.floorDiv((int)Math.floor(this.player.x), 16);
+         int pcz = Math.floorDiv((int)Math.floor(this.player.z), 16);
+         this.level.wakeRestlessFluids(pcx - 2, pcz - 2, pcx + 2, pcz + 2);
+      }
    }
 
-   private void tickBreaking(InputState in) {
-      HitResult hit = null;
-      if (in.breaking) {
-         hit = new HitResult(in.breakX, in.breakY, in.breakZ, in.breakFace);
+    private void tickBreaking(InputState in) {
+       HitResult hit = null;
+       if (!this.player.spectator && in.breaking) {
+          hit = new HitResult(in.breakX, in.breakY, in.breakZ, in.breakFace);
+       }
+      if (this.breakCooldown > 0) {
+         this.breakCooldown--;
       }
       if (hit != null) {
          if (this.prevHitResult == null || this.prevHitResult.x != hit.x || this.prevHitResult.y != hit.y || this.prevHitResult.z != hit.z) {
@@ -285,27 +314,36 @@ public class GameServer implements LevelListener {
          }
 
          int tileId = this.level.getTile(hit.x, hit.y, hit.z);
-         if (tileId > 0 && Blocks.hardness(tileId) > 0) {
+         if (tileId > 0 && Blocks.hardness(tileId) > 0 && this.breakCooldown <= 0) {
             this.destroyProgress += 1.0F / Blocks.hardness(tileId);
 
-            if (this.destroyProgress >= 1.0F) {
-               int brokenId = tileId;
-               this.breakBlock(hit.x, hit.y, hit.z, brokenId);
-               this.settleAbove(hit.x, hit.y, hit.z);
-               this.popUnsupported(hit.x, hit.y, hit.z);
+             if (this.destroyProgress >= 1.0F) {
+                int brokenId = tileId;
+                this.breakBlock(hit.x, hit.y, hit.z, brokenId);
+                this.notifySupport(hit.x, hit.y, hit.z);
+                this.popUnsupported(hit.x, hit.y, hit.z);
                this.wakeFluid(hit.x, hit.y, hit.z);
                this.destroyProgress = 0.0F;
                this.prevHitResult = null;
+               this.breakCooldown = 15;
             }
          }
       } else {
          this.destroyProgress = 0.0F;
          this.prevHitResult = null;
+         this.breakCooldown = 0;
       }
    }
 
    private void breakBlock(int x, int y, int z, int tileId) {
       this.level.setTile(x, y, z, 0);
+      if (tileId == Blocks.ICE_ID && y > 0) {
+         int below = this.level.getTile(x, y - 1, z);
+         if (below != 0 && (Blocks.isSolid(below) || Blocks.isFluid(below))) {
+            this.level.setTile(x, y, z, Blocks.WATER_ID);
+            this.wakeFluid(x, y, z);
+         }
+      }
       BreakEffect effect = new BreakEffect();
       effect.x = x;
       effect.y = y;
@@ -323,13 +361,23 @@ public class GameServer implements LevelListener {
       this.popColumn(x, y, z - 1);
    }
 
-   private void popColumn(int x, int y, int z) {
-      while (y < this.level.depth) {
+    private void popColumn(int x, int y, int z) {
+       for (int yy = y - 1; yy >= 0; yy--) {
+          int id = this.level.getTile(x, yy, z);
+          Block b = id > 0 ? Blocks.byId(id) : null;
+          if (b != null && !b.canStay(this.level, x, yy, z)) {
+             this.breakBlock(x, yy, z, id);
+             this.notifySupport(x, yy, z);
+          } else {
+             break;
+          }
+       }
+       while (y < this.level.depth) {
          int id = this.level.getTile(x, y, z);
          Block b = id > 0 ? Blocks.byId(id) : null;
          if (b != null && !b.canStay(this.level, x, y, z)) {
             this.breakBlock(x, y, z, id);
-            this.settleAbove(x, y, z);
+             this.notifySupport(x, y, z);
          }
          y++;
       }
@@ -351,17 +399,35 @@ public class GameServer implements LevelListener {
       }
    }
 
-   private void settleAbove(int x, int y, int z) {
-      for (int yy = y; yy < this.level.depth; yy++) {
-         int id = this.level.getTile(x, yy, z);
-         int below = yy > 0 ? this.level.getTile(x, yy - 1, z) : 1;
-         if (Blocks.isFalling(id)
-            && (below == 0 || Blocks.isFluid(below) || below == Blocks.SNOW_LAYER_ID
-               || below == Blocks.LILYPAD_ID)) {
-            this.spawnFalling(x, yy, z, id);
-         }
-      }
-   }
+    private void notifySupport(int x, int y, int z) {
+       java.util.ArrayDeque<long[]> queue = new java.util.ArrayDeque<>();
+       queue.add(new long[]{x, y, z});
+       queue.add(new long[]{x + 1, y, z});
+       queue.add(new long[]{x - 1, y, z});
+       queue.add(new long[]{x, y + 1, z});
+       queue.add(new long[]{x, y - 1, z});
+       queue.add(new long[]{x, y, z + 1});
+       queue.add(new long[]{x, y, z - 1});
+       while (!queue.isEmpty()) {
+          long[] c = queue.removeFirst();
+          int cx = (int)c[0], cy = (int)c[1], cz = (int)c[2];
+          int id = cy < 0 || cy >= this.level.depth ? 0 : this.level.getTile(cx, cy, cz);
+          if (!Blocks.isFalling(id)) {
+             continue;
+          }
+          int below = cy > 0 ? this.level.getTile(cx, cy - 1, cz) : 1;
+          if (below == 0 || Blocks.isFluid(below) || below == Blocks.SNOW_LAYER_ID
+             || below == Blocks.LILYPAD_ID) {
+             this.spawnFalling(cx, cy, cz, id);
+             queue.add(new long[]{cx + 1, cy, cz});
+             queue.add(new long[]{cx - 1, cy, cz});
+             queue.add(new long[]{cx, cy + 1, cz});
+             queue.add(new long[]{cx, cy - 1, cz});
+             queue.add(new long[]{cx, cy, cz + 1});
+             queue.add(new long[]{cx, cy, cz - 1});
+          }
+       }
+    }
 
    private void spawnFalling(int x, int y, int z, int id) {
       this.level.setTile(x, y, z, 0);
@@ -384,7 +450,6 @@ public class GameServer implements LevelListener {
          if (e.bb.y0 < 0.0F) {
             this.falling.remove(i--);
             this.sendFallRemove(e);
-            this.spawnDrop(e.landX(), 0, e.landZ(), e.blockId);
             continue;
          }
          if (!e.onGround) {
@@ -395,16 +460,17 @@ public class GameServer implements LevelListener {
          int fx = e.landX(), fy = e.landY(), fz = e.landZ();
          int occupant = this.level.getTile(fx, fy, fz);
          if (occupant > 0 && !Blocks.isFluid(occupant)) {
-            Block b = Blocks.byId(occupant);
-            if (b != null && b.needsSupport()) {
+            if (!Blocks.isSolid(occupant)) {
                this.breakBlock(fx, fy, fz, occupant);
             } else {
-               this.spawnDrop(fx, fy, fz, e.blockId);
+               this.spawnDrop(fx, fy + 1, fz, e.blockId);
                continue;
             }
          }
          this.level.setTile(fx, fy, fz, e.blockId);
          this.wakeFluid(fx, fy, fz);
+         this.notifySupport(fx, fy, fz);
+         this.popUnsupported(fx, fy, fz);
       }
    }
 
@@ -421,8 +487,8 @@ public class GameServer implements LevelListener {
       }
       java.util.Random rng = Rng.world();
       ItemEntity e = new ItemEntity(this.nextEntityId++, drop,
-         x + 0.5F, y + 0.5F, z + 0.5F,
-         (rng.nextFloat() - 0.5F) * 0.4F, 0.35F, (rng.nextFloat() - 0.5F) * 0.4F);
+         x + 0.2F + rng.nextFloat() * 0.6F, y + 0.2F + rng.nextFloat() * 0.6F, z + 0.2F + rng.nextFloat() * 0.6F,
+         (rng.nextFloat() - 0.5F) * 0.2F, 0.15F, (rng.nextFloat() - 0.5F) * 0.2F);
       float br = this.level.getBrightness(x, y, z);
       e.r = br;
       e.g = br;
@@ -443,10 +509,12 @@ public class GameServer implements LevelListener {
    private void tickItems() {
       for (int i = 0; i < this.items.size(); i++) {
          ItemEntity e = this.items.get(i);
-         e.tick(this.level, this.player.x, this.player.y, this.player.z);
-         if (e.expired()) {
+         e.tick(this.level, this.player.bb);
+         if (e.y < -10.0F) {
             this.despawn(i--, e);
-         } else if (e.pickupDelay <= 0 && e.near(this.player.x, this.player.y, this.player.z)) {
+         } else if (e.expired()) {
+            this.despawn(i--, e);
+         } else if (e.pickupDelay <= 0 && e.near(this.player.bb)) {
             if (this.inventory.add(e.blockId, 1)) {
                this.despawn(i--, e);
                this.sendInv();
@@ -462,7 +530,11 @@ public class GameServer implements LevelListener {
       this.conn.sendToClient(r);
    }
 
-    private boolean payStock(int blockId) {
+    private boolean payStock(int blockId, int slot) {
+       if (slot >= 0 && slot < Inventory.SLOTS
+          && !this.inventory.slots[slot].isEmpty() && this.inventory.slots[slot].blockId == blockId) {
+          return this.inventory.consume(slot, 1) == 1;
+       }
        for (int i = 0; i < Inventory.SLOTS; i++) {
           if (!this.inventory.slots[i].isEmpty() && this.inventory.slots[i].blockId == blockId) {
              return this.inventory.consume(i, 1) == 1;
@@ -471,10 +543,20 @@ public class GameServer implements LevelListener {
        return false;
     }
 
+    private boolean validFace(int face) {
+       return face >= 0 && face <= 5;
+    }
+
     private void handlePlace(PlaceBlock p) {
+      if (this.player.spectator) {
+         return;
+      }
       int x = p.x;
       int y = p.y;
       int z = p.z;
+      if (!this.validFace(p.face)) {
+         return;
+      }
       if (p.face == 0) y--;
       if (p.face == 1) y++;
       if (p.face == 2) z--;
@@ -482,9 +564,17 @@ public class GameServer implements LevelListener {
       if (p.face == 4) x--;
       if (p.face == 5) x++;
 
-      AABB blockAABB = new AABB(x, y, z, x + 1, y + 1, z + 1);
-      if (blockAABB.intersects(this.player.bb)) {
+      Block placing = Blocks.byId(p.blockId);
+      int target = this.level.getTile(x, y, z);
+      if (target != 0 && !Blocks.isFluid(target) && target != Blocks.TALL_GRASS_ID
+         && target != Blocks.SNOW_LAYER_ID && target != Blocks.DEADBUSH_ID) {
          return;
+      }
+      if (placing != null) {
+         AABB shape = placing.collisionBox(this.level, x, y, z);
+         if (shape != null && shape.intersects(this.player.bb)) {
+            return;
+         }
       }
       if (p.blockId == Blocks.SNOW_LAYER_ID) {
          int tx = x, ty = y, tz = z;
@@ -496,13 +586,13 @@ public class GameServer implements LevelListener {
          }
          if (this.level.getTile(tx, ty, tz) == Blocks.SNOW_LAYER_ID
             && (this.level.getData(tx, ty, tz) & 7) < 7) {
-            if (!this.payStock(p.blockId)) {
+            if (!this.payStock(p.blockId, p.slot)) {
                return;
             }
-            this.level.setTile(tx, ty, tz,
-               Blocks.stateOf(Blocks.byId(p.blockId), (this.level.getData(tx, ty, tz) & 7) + 1));
-            this.settleAbove(tx, ty, tz);
-            this.popUnsupported(tx, ty, tz);
+             this.level.setTile(tx, ty, tz,
+                Blocks.stateOf(Blocks.byId(p.blockId), (this.level.getData(tx, ty, tz) & 7) + 1));
+             this.notifySupport(tx, ty, tz);
+             this.popUnsupported(tx, ty, tz);
             this.wakeFluid(tx, ty, tz);
             this.sendInv();
             return;
@@ -512,7 +602,6 @@ public class GameServer implements LevelListener {
       if (p.blockId == Blocks.TORCH_ID && p.face == 0) {
          return;
       }
-      Block placing = Blocks.byId(p.blockId);
       if (placing != null) {
          if (wallTorch) {
             if (!TorchBlock.wallSolid(this.level, x, y, z, p.face)) {
@@ -522,7 +611,7 @@ public class GameServer implements LevelListener {
             return;
          }
       }
-      if (!this.payStock(p.blockId)) {
+      if (!this.payStock(p.blockId, p.slot)) {
          return;
       }
       if (wallTorch) {
@@ -547,11 +636,11 @@ public class GameServer implements LevelListener {
       if (Blocks.isFluid(p.blockId)) {
          this.level.scheduleTick(x, y, z, Fluid.of(p.blockId).ticks);
       }
-      this.settleAbove(x, y, z);
-      this.popUnsupported(x, y, z);
-      this.wakeFluid(x, y, z);
-      this.sendInv();
-   }
+       this.notifySupport(x, y, z);
+       this.popUnsupported(x, y, z);
+       this.wakeFluid(x, y, z);
+       this.sendInv();
+    }
 
    @Override
    public void tileChanged(int x, int y, int z) {

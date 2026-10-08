@@ -18,6 +18,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL15;
 
 public class LevelRenderer implements LevelListener {
@@ -308,6 +309,7 @@ public class LevelRenderer implements LevelListener {
       } else {
          GL11.glEnableClientState(GL11.GL_COLOR_ARRAY);
       }
+      GL11.glEnableClientState(GL14.GL_SECONDARY_COLOR_ARRAY);
       ChunkShader.bind();
 
       int passed = 0;
@@ -347,18 +349,26 @@ public class LevelRenderer implements LevelListener {
       if (!fullBright) {
          GL11.glDisableClientState(GL11.GL_COLOR_ARRAY);
       }
+      GL11.glDisableClientState(GL14.GL_SECONDARY_COLOR_ARRAY);
       GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
    }
 
-   public void renderHit(HitResult h, float progress) {
-      float x0 = h.x;
-      float y0 = h.y;
-      float z0 = h.z;
-      float x1 = h.x + 1.0F;
-      float y1 = h.y + 1.0F;
-      float z1 = h.z + 1.0F;
+    public void renderHit(HitResult h, float progress) {
+       com.strata.blocks.Block picked = null;
+       int pickTile = this.level.getTile(h.x, h.y, h.z);
+       if (pickTile > 0) {
+          picked = Blocks.byId(pickTile);
+       }
+       com.strata.core.AABB box = picked == null ? null : picked.pickBox(this.level, h.x, h.y, h.z);
+       float x0 = box == null ? h.x : box.x0;
+       float y0 = box == null ? h.y : box.y0;
+       float z0 = box == null ? h.z : box.z0;
+       float x1 = box == null ? h.x + 1.0F : box.x1;
+       float y1 = box == null ? h.y + 1.0F : box.y1;
+       float z1 = box == null ? h.z + 1.0F : box.z1;
 
-      GL11.glEnable(GL11.GL_BLEND);
+       GL11.glDisable(GL11.GL_ALPHA_TEST);
+       GL11.glEnable(GL11.GL_BLEND);
       GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
       GL11.glColor4f(0.0F, 0.0F, 0.0F, 0.4F);
       GL11.glLineWidth(2.0F);
@@ -414,6 +424,8 @@ public class LevelRenderer implements LevelListener {
       }
 
       GL11.glDisable(GL11.GL_BLEND);
+      GL11.glEnable(GL11.GL_ALPHA_TEST);
+      GL11.glAlphaFunc(GL11.GL_GREATER, 0.5F);
    }
 
    static int crackStageFor(float progress) {

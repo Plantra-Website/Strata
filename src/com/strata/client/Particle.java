@@ -30,6 +30,9 @@ public class Particle {
    public float r = 1.0F;
    public float g = 1.0F;
    public float b = 1.0F;
+   public float tr = 1.0F;
+   public float tg = 1.0F;
+   public float tb = 1.0F;
    public float gravity = 0.025F;
 
    public Particle(Level level, float x, float y, float z, float xd, float yd, float zd, int texIndex) {
@@ -122,6 +125,11 @@ public class Particle {
          this.xd *= 0.7F;
          this.zd *= 0.7F;
       }
+      float br = this.level.getBrightness(MathHelper.floor(this.x),
+         MathHelper.floor(this.y), MathHelper.floor(this.z));
+      this.r = br * this.tr;
+      this.g = br * this.tg;
+      this.b = br * this.tb;
    }
 
    public void move(float xa, float ya, float za) {

@@ -1,5 +1,7 @@
 package com.strata.client;
 
+import com.strata.blocks.AtlasStitcher;
+import com.strata.blocks.BiomeTints;
 import com.strata.blocks.Blocks;
 import com.strata.core.MathHelper;
 import com.strata.server.Player;
@@ -89,10 +91,23 @@ public class ParticleEngine {
                float px = x + (xx + 0.5F) / count;
                float py = y + (yy + 0.5F) / count;
                float pz = z + (zz + 0.5F) / count;
-               this.add(new Particle(this.level, px, py, pz, px - (x + 0.5F), py - (y + 0.5F), pz - (z + 0.5F), texIndex));
+               Particle p = new Particle(this.level, px, py, pz, px - (x + 0.5F), py - (y + 0.5F), pz - (z + 0.5F), texIndex);
+               tintByTile(p, texIndex, px, pz);
+               this.add(p);
             }
          }
       }
+   }
+
+   private void tintByTile(Particle p, int texIndex, float x, float z) {
+      float[] tc = BiomeTints.colorFor(AtlasStitcher.tintKind(texIndex),
+         this.level.biomeAt(MathHelper.floor(x), MathHelper.floor(z)));
+      p.tr = tc[0];
+      p.tg = tc[1];
+      p.tb = tc[2];
+      p.r *= tc[0];
+      p.g *= tc[1];
+      p.b *= tc[2];
    }
 
    public void addBlockHitParticles(int x, int y, int z, int face, int texIndex) {
@@ -105,7 +120,9 @@ public class ParticleEngine {
       if (face == 3) pz = z + 1.05F;
       if (face == 4) px = x - 0.05F;
       if (face == 5) px = x + 1.05F;
-      this.add(new Particle(this.level, px, py, pz, 0.0F, 0.0F, 0.0F, texIndex));
+      Particle p = new Particle(this.level, px, py, pz, 0.0F, 0.0F, 0.0F, texIndex);
+      tintByTile(p, texIndex, px, pz);
+      this.add(p);
    }
 
    public void tick() {
@@ -115,12 +132,13 @@ public class ParticleEngine {
             this.addSmoke(p.x, p.y, p.z);
          }
          p.tick();
-         if (!p.isDead() && p.lavaPop && p.onGround) {
+         if (!p.isDead() && p.lavaPop) {
             int bx = MathHelper.floor(p.x);
             int by = MathHelper.floor(p.y - 0.05F);
             int bz = MathHelper.floor(p.z);
-            if (this.level.getTile(bx, by, bz) == Blocks.LAVA_ID
-               || this.level.getTile(bx, by - 1, bz) == Blocks.LAVA_ID) {
+            if ((this.level.getTile(bx, by, bz) == Blocks.LAVA_ID
+               || this.level.getTile(bx, by - 1, bz) == Blocks.LAVA_ID)
+               && (p.onGround || p.yd < 0.0F)) {
                p.age = p.lifetime;
             }
          }

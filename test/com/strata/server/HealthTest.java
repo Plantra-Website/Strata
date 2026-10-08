@@ -47,7 +47,7 @@ public class HealthTest {
       check(st != null && st.hp == 20, "hp syncs full");
 
       float gy = pl.y;
-      pl.teleport(pl.x, gy + 15.0F, pl.z);
+      pl.teleport(pl.x, gy - Player.EYE_HEIGHT + 15.0F, pl.z);
       st = drain(s, conn, 400);
       check(pl.onGround, "fall settles");
       check(pl.hp < 20 && pl.hp > 0, "15-block fall damages (hp=" + pl.hp + ")");
@@ -67,7 +67,7 @@ public class HealthTest {
       s.level().setTile(cx, ch + 1, cz, Blocks.CACTUS_ID);
       pl.hp = 20;
       pl.teleport(cx + 0.5F, ch + 3.0F, cz + 0.5F);
-      drain(s, conn, 40);
+      drain(s, conn, 80);
       check(pl.hp < 20, "cactus pricks (hp=" + pl.hp + ")");
       pl.teleport(cx + 2.5F, ch + 1.6F, cz + 0.5F);
       pl.hp = 20;
@@ -78,6 +78,13 @@ public class HealthTest {
       drain(s, conn, 3);
       check(pl.hp == 20, "death restores health");
       check(pl.onGround, "death respawns grounded");
+
+      pl.hp = 20;
+      pl.teleport(pl.x, -20.0F, pl.z);
+      drain(s, conn, 30);
+      check(pl.hp == 20, "void kills then restores health (hp=" + pl.hp + ")");
+      check(pl.bb.y0 > -10.0F, "void respawns out of the fall (feet=" + pl.bb.y0 + ")");
+      check(pl.onGround, "void respawns grounded");
 
       conn.sendToServer(new HurtSelf());
       drain(s, conn, 3);

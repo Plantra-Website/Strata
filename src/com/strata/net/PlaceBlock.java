@@ -10,6 +10,7 @@ public class PlaceBlock extends Packet {
    public int z;
    public int face;
    public int blockId;
+   public int slot;
 
    static {
       Packet.register(2, PlaceBlock::new);
@@ -24,6 +25,7 @@ public class PlaceBlock extends Packet {
       out.writeInt(this.z);
       out.writeByte(this.face);
       out.writeByte(this.blockId);
+      out.writeByte(this.slot);
    }
 
    @Override
@@ -33,6 +35,13 @@ public class PlaceBlock extends Packet {
       this.z = in.readInt();
       this.face = in.readByte();
       this.blockId = in.readByte() & 0xFF;
+      int slot;
+      try {
+         slot = in.readByte() & 0xFF;
+      } catch (java.io.EOFException e) {
+         slot = 0;
+      }
+      this.slot = slot;
    }
 }
 

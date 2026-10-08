@@ -26,6 +26,7 @@ public class OptionsTest {
       o.viewRadius = 9;
       o.guiScale = 2;
       o.sensitivity = 2.5F;
+      o.tintBlend = false;
       File f = new File("options-roundtrip.txt");
       o.save(f);
       Options back = Options.load(f);
@@ -37,8 +38,10 @@ public class OptionsTest {
       check(Gui.autoScale(1024, 768) == 3, "auto scale 1024x768");
       check(Gui.autoScale(640, 480) == 2, "auto scale 640x480");
       check(Gui.autoScale(320, 240) == 1, "auto scale minimum");
+      check(Gui.autoScale(3840, 2160) == 3, "auto caps at vanilla 3 on huge screens");
       check(Gui.resolveScale(2, 9999, 9999) == 2, "pinned scale wins");
       check(back.sensitivity == 2.5F, "sensitivity roundtrips");
+      check(!back.tintBlend, "tint blend roundtrips");
       f.delete();
 
       File bad = new File("options-bad.txt");

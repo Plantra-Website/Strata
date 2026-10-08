@@ -4,19 +4,25 @@ public class MeshBuilder {
    private float[] verts = new float[4096 * 3];
    private float[] texs = new float[4096 * 2];
    private float[] cols = new float[4096 * 3];
+   private float[] tints = new float[4096 * 3];
    private int vertices = 0;
    private float u;
    private float v;
    private float r;
    private float g;
    private float b;
+   private float tr = 1.0F;
+   private float tg = 1.0F;
+   private float tb = 1.0F;
    private boolean hasColor = false;
    private boolean hasTexture = false;
+   private boolean hasTint = false;
 
    public void init() {
       this.vertices = 0;
       this.hasColor = false;
       this.hasTexture = false;
+      this.hasTint = false;
    }
 
    public void tex(float u, float v) {
@@ -30,6 +36,13 @@ public class MeshBuilder {
       this.r = r;
       this.g = g;
       this.b = b;
+   }
+
+   public void tint(float r, float g, float b) {
+      this.hasTint = true;
+      this.tr = r;
+      this.tg = g;
+      this.tb = b;
    }
 
    public void vertex(float x, float y, float z) {      if (this.vertices * 3 + 2 >= this.verts.length) {
@@ -48,6 +61,11 @@ public class MeshBuilder {
          this.cols[this.vertices * 3 + 1] = this.g;
          this.cols[this.vertices * 3 + 2] = this.b;
       }
+      if (this.hasTint) {
+         this.tints[this.vertices * 3] = this.tr;
+         this.tints[this.vertices * 3 + 1] = this.tg;
+         this.tints[this.vertices * 3 + 2] = this.tb;
+      }
 
       this.vertices++;
    }
@@ -62,6 +80,9 @@ public class MeshBuilder {
       float[] nc = new float[this.cols.length * 2];
       System.arraycopy(this.cols, 0, nc, 0, this.cols.length);
       this.cols = nc;
+      float[] nt2 = new float[this.tints.length * 2];
+      System.arraycopy(this.tints, 0, nt2, 0, this.tints.length);
+      this.tints = nt2;
    }
 
    public int count() {
@@ -102,6 +123,12 @@ public class MeshBuilder {
    public float[] colors() {
       float[] out = new float[this.vertices * 3];
       System.arraycopy(this.cols, 0, out, 0, out.length);
+      return out;
+   }
+
+   public float[] tints() {
+      float[] out = new float[this.vertices * 3];
+      System.arraycopy(this.tints, 0, out, 0, out.length);
       return out;
    }
 }

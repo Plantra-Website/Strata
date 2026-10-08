@@ -42,6 +42,7 @@ public class ImportTest {
       check(WorldImporter.stripSegments(new byte[]{1, 2, 3}) == null, "non-JPEG rejected");
 
       File dir = new File("importworld");
+      com.strata.server.ItemTest.wipeDir(dir);
       GameServer s = new GameServer(new LocalConnection(), dir, 555L, true);
       check(s.level().getTile(200, 40, -200) == 0, "void is air");
       WorldImporter.importImage(s, twoTone());
@@ -83,7 +84,8 @@ public class ImportTest {
       check(s.level().getTile(tx, 40, tz) == Blocks.STONE_ID, "tower stalk");
       check(s.level().getTile(tx, 51, tz) == Blocks.STONE_ID, "tower cap");
       check(Math.abs(s.player().x - spawn[0]) < 0.01, "player on spawn x");
-      check(Math.abs(s.player().y - spawn[1]) < 0.01, "player on spawn y");
+      check(Math.abs(s.player().y - (spawn[1] + 1.62F)) < 0.01, "player on spawn y");
+      check(Math.abs(s.player().bb.y0 - spawn[1]) < 0.01, "feet on spawn platform");
       check(s.player().yRot == 0.0F && s.player().xRot == 30.0F, "player faces art pitched down");
 
       GameServer re = new GameServer(new LocalConnection(), dir, null);

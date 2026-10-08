@@ -66,7 +66,28 @@ final class LevelStorage {
       return 0;
    }
 
-   private void storeImportedCell(int x, int y, int z, int v) {
+    private static byte[] readMaybeGzip(File legacy) throws Exception {
+       byte[] fileBytes;
+       try (java.io.InputStream in = new java.io.FileInputStream(legacy)) {
+          fileBytes = in.readAllBytes();
+       }
+       try {
+          ByteArrayOutputStream raw = new ByteArrayOutputStream();
+          DataInputStream dis = new DataInputStream(new GZIPInputStream(new ByteArrayInputStream(fileBytes)));
+          byte[] buf = new byte[65536];
+          int n;
+          while ((n = dis.read(buf)) > 0) {
+             raw.write(buf, 0, n);
+          }
+          dis.close();
+          return raw.toByteArray();
+       } catch (Exception e) {
+          Log.info("world", "level.dat is not gzip, trying raw (" + fileBytes.length + " bytes)");
+          return fileBytes;
+       }
+    }
+
+    private void storeImportedCell(int x, int y, int z, int v) {
       if (y < 0 || y >= this.level.depth) {
          return;
       }
@@ -80,15 +101,7 @@ final class LevelStorage {
          return;
       }
       try {
-         ByteArrayOutputStream raw = new ByteArrayOutputStream();
-         DataInputStream dis = new DataInputStream(new GZIPInputStream(new FileInputStream(legacy)));
-         byte[] buf = new byte[65536];
-         int n;
-         while ((n = dis.read(buf)) > 0) {
-            raw.write(buf, 0, n);
-         }
-         dis.close();
-         byte[] data = raw.toByteArray();
+         byte[] data = readMaybeGzip(legacy);
          if (data.length >= 4 && ((data[0] & 0xFF) << 24 | (data[1] & 0xFF) << 16 | (data[2] & 0xFF) << 8 | (data[3] & 0xFF)) == SAVE_MAGIC) {
             this.importSparse(data);
          } else if (data.length == LEGACY_W * LEGACY_H * LEGACY_D) {
@@ -120,13 +133,30 @@ final class LevelStorage {
       DataInputStream in = new DataInputStream(new ByteArrayInputStream(data));
       in.readInt(); 
       int count = in.readInt();
+      if (count <= 0) {
+         Log.info("world", "imported sparse save (0 edited cells)");
+         return;
+      }
+      int colLen = (data.length - 8) / count - 8;
+      if (colLen <= 0) {
+         throw new java.io.IOException("bad sparse save (" + data.length + " bytes, " + count + " columns)");
+      }
       int kept = 0;
       for (int i = 0; i < count; i++) {
          long key = in.readLong();
          int x = (int)(key >> 32);
          int z = (int)(key & 0xFFFFFFFFL);
          byte[] col = new byte[this.level.depth];
-         in.readFully(col);
+         int take = Math.min(colLen, this.level.depth);
+         in.readFully(col, 0, take);
+         int skip = colLen - take;
+         while (skip > 0) {
+            int n = in.skipBytes(skip);
+            if (n <= 0) {
+               throw new java.io.EOFException("short sparse column " + i);
+            }
+            skip -= n;
+         }
          for (int y = 0; y < this.level.depth; y++) {
             int v = col[y] & 0xFF;
             if (v != this.oldFlatTile(y)) {
@@ -208,23 +238,36 @@ final class LevelStorage {
       }
       this.level.skyLight.clearSeeded();
       int count = 0;
+      RegionFile region = null;
       try {
-         RegionFile region = new RegionFile(file);
+         region = new RegionFile(file);
+      } catch (Exception e) {
+         Log.warn("world", "failed to open region " + rx + "," + rz + ": " + e);
+         return;
+      }
+      try {
          for (int lx = 0; lx < REGION_SIZE; lx++) {
             for (int lz = 0; lz < REGION_SIZE; lz++) {
-               if (!region.hasChunk(lx, lz)) {
-                  continue;
-               }
+               try {
+                  if (!region.hasChunk(lx, lz)) {
+                     continue;
+                  }
                byte[] nbt = region.readChunk(lx, lz);
-               if (nbt != null && this.readColumnChunk(nbt)) {
+               if (nbt != null && this.readColumnChunk(nbt, lx, lz)) {
                   count++;
+               }
+               } catch (Exception e) {
+                  Log.warn("world", "skipping corrupt chunk " + lx + "," + lz
+                     + " in region " + rx + "," + rz + ": " + e);
                }
             }
          }
-         region.close();
-      } catch (Exception e) {
-          Log.warn("world", "failed to load region " + rx + "," + rz + ": " + e);
-         return;
+      } finally {
+         try {
+            region.close();
+         } catch (Exception e) {
+            Log.warn("world", "failed to close region " + rx + "," + rz + ": " + e);
+         }
       }
       if (count > 0) {
           Log.info("world", "loaded region " + rx + "," + rz + " (" + count + " columns)");
@@ -232,6 +275,10 @@ final class LevelStorage {
    }
 
    private boolean readColumnChunk(byte[] nbt) {
+      return this.readColumnChunk(nbt, Integer.MIN_VALUE, Integer.MIN_VALUE);
+   }
+
+   private boolean readColumnChunk(byte[] nbt, int slx, int slz) {
       try {
          NBT.CompoundTag root = NBT.readRoot(new DataInputStream(new ByteArrayInputStream(nbt)));
          NBT.CompoundTag lvl = root.compound("Level");
@@ -240,6 +287,12 @@ final class LevelStorage {
          }
           int ccx = lvl.integer("xPos");
           int ccz = lvl.integer("zPos");
+          if (slx != Integer.MIN_VALUE
+             && (Math.floorMod(ccx, REGION_SIZE) != slx || Math.floorMod(ccz, REGION_SIZE) != slz)) {
+             Log.warn("world", "column chunk at wrong slot (" + ccx + "," + ccz
+                + " in slot " + slx + "," + slz + "), skipping");
+             return false;
+          }
           NBT.Tag versionTag = lvl.get("DataVersion");
           int dataVersion = versionTag instanceof NBT.IntTag ? lvl.integer("DataVersion") : 0;
           if (dataVersion > SAVE_VERSION && !this.warnedNewerSave) {
@@ -286,7 +339,14 @@ final class LevelStorage {
                   any = true;
                }
                if (data != null && data[i] != 0) {
-                  this.level.setData(x, y, z, data[i] & 0xFF);
+                  this.level.writeDataCell(x, y, z, data[i] & 0xFF);
+               }
+            }
+         }
+         if (any) {
+            for (int lx = 0; lx < 16; lx++) {
+               for (int lz = 0; lz < 16; lz++) {
+                  this.level.skyLight.invalidate(ccx * 16 + lx, ccz * 16 + lz);
                }
             }
          }
@@ -352,6 +412,30 @@ final class LevelStorage {
       return out.toByteArray();
    }
 
+   private boolean columnIsDefault(int ccx, int ccz) {
+      for (int x = ccx * 16; x < ccx * 16 + 16; x++) {
+         for (int z = ccz * 16; z < ccz * 16 + 16; z++) {
+            byte[] col = this.level.columns.get(Level.columnKey(x, z));
+            if (col != null) {
+               for (int y = 0; y < col.length && y < this.level.depth; y++) {
+                  if ((col[y] & 0xFF) != this.level.defaultTile(x, y, z)) {
+                     return false;
+                  }
+               }
+            }
+            byte[] dcol = this.level.dataColumns.get(Level.columnKey(x, z));
+            if (dcol != null) {
+               for (int y = 0; y < dcol.length && y < this.level.depth; y++) {
+                  if (dcol[y] != 0) {
+                     return false;
+                  }
+               }
+            }
+         }
+      }
+      return true;
+   }
+
    void save() {
       if (!this.level.loadFromDisk || this.dirtyRegions.isEmpty()) {
          return;
@@ -361,7 +445,14 @@ final class LevelStorage {
          for (long rkey : this.dirtyRegions) {
             byRegion.put(rkey, new ArrayList<int[]>());
          }
+         java.util.HashSet<Long> owned = new java.util.HashSet<>();
          for (long ckey : this.level.columns.keySet()) {
+            owned.add(ckey);
+         }
+         for (long ckey : this.level.dataColumns.keySet()) {
+            owned.add(ckey);
+         }
+         for (long ckey : owned) {
             int x = (int)(ckey >> 32);
             int z = (int)(ckey & 0xFFFFFFFFL);
             long rkey = regionKeyForColumn(x, z);
@@ -390,7 +481,13 @@ final class LevelStorage {
             for (int[] cc : e.getValue()) {
                int lx = Math.floorMod(cc[0], REGION_SIZE);
                int lz = Math.floorMod(cc[1], REGION_SIZE);
-               region.writeChunk(lx, lz, this.writeColumnChunk(cc[0], cc[1]));
+               if (this.columnIsDefault(cc[0], cc[1])) {
+                  region.clearChunk(lx, lz);
+                  this.level.columns.remove(Level.columnKey(cc[0], cc[1]));
+                  this.level.dataColumns.remove(Level.columnKey(cc[0], cc[1]));
+               } else {
+                  region.writeChunk(lx, lz, this.writeColumnChunk(cc[0], cc[1]));
+               }
             }
             if (region.maybeCompact()) {
                Log.info("world", "compacted region " + rx + "," + rz + " (waste exceeded 50%)");

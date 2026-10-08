@@ -17,7 +17,7 @@ public class MushroomBlock extends CrossBlock {
       if (below == Blocks.MYCELIUM_ID) {
          return true;
       }
-      return level.getBrightness(x, y, z) < DARK && Blocks.isSolid(below);
+      return level.getBrightness(x, y, z) < DARK && Blocks.isOpaqueCube(below);
    }
 }
 

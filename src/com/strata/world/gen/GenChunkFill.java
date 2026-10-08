@@ -337,17 +337,17 @@ public class GenChunkFill {
     }
 
    private int topBlock(int biome) {
-      if (biome == GenBiomes.DESERT || biome == GenBiomes.MUSHROOM_SHORE) {
+      if (biome == GenBiomes.DESERT) {
          return Blocks.SAND_ID;
       }
-      if (biome == GenBiomes.MUSHROOM_ISLAND) {
+      if (biome == GenBiomes.MUSHROOM_ISLAND || biome == GenBiomes.MUSHROOM_SHORE) {
          return Blocks.MYCELIUM_ID;
       }
       return Blocks.GRASS_ID;
    }
 
    private int fillerBlock(int biome) {
-      if (biome == GenBiomes.DESERT || biome == GenBiomes.MUSHROOM_SHORE) {
+      if (biome == GenBiomes.DESERT) {
          return Blocks.SAND_ID;
       }
       return Blocks.DIRT_ID;

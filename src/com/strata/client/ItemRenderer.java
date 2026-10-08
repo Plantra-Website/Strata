@@ -1,10 +1,12 @@
 package com.strata.client;
 
 import com.strata.blocks.AtlasStitcher;
+import com.strata.blocks.BiomeTints;
 import com.strata.blocks.Block;
 import com.strata.blocks.Blocks;
 import com.strata.blocks.CubeBlock;
 import com.strata.blocks.MeshBuilder;
+import com.strata.core.AABB;
 import com.strata.core.MathHelper;
 import com.strata.server.ItemEntity;
 import com.strata.server.Player;
@@ -26,10 +28,7 @@ public class ItemRenderer {
 
    public void spawn(int entityId, float x, float y, float z, float xd, float yd, float zd, int blockId) {
       ItemEntity e = new ItemEntity(entityId, blockId, x, y, z, xd, yd, zd);
-      float br = this.brightnessAt(x, y, z);
-      e.r = br;
-      e.g = br;
-      e.b = br;
+      this.lightAndTint(e);
       this.items.put(entityId, e);
    }
 
@@ -114,14 +113,21 @@ public class ItemRenderer {
       return 4;
    }
 
-   public void tick(float px, float py, float pz) {
+   public void tick(AABB box) {
       for (ItemEntity e : this.items.values()) {
-         e.tick(this.level, px, py, pz);
-         float br = this.brightnessAt(e.x, e.y, e.z);
-         e.r = br;
-         e.g = br;
-         e.b = br;
+         e.tick(this.level, box);
+         this.lightAndTint(e);
       }
+   }
+
+   private void lightAndTint(ItemEntity e) {
+      float br = this.brightnessAt(e.x, e.y, e.z);
+      float[] tc = BiomeTints.colorFor(
+         AtlasStitcher.tintKind(Blocks.particleTile(e.blockId)),
+         this.level.biomeAt(MathHelper.floor(e.x), MathHelper.floor(e.z)));
+      e.r = br * tc[0];
+      e.g = br * tc[1];
+      e.b = br * tc[2];
    }
 
    private float brightnessAt(float x, float y, float z) {

@@ -1,9 +1,12 @@
 package com.strata.client;
 
 import com.strata.blocks.AtlasStitcher;
+import com.strata.blocks.BiomeTints;
 import com.strata.blocks.Block;
 import com.strata.blocks.Blocks;
+import com.strata.blocks.CactusBlock;
 import com.strata.blocks.CubeBlock;
+import com.strata.blocks.SnowBlock;
 import com.strata.core.Log;
 import com.strata.server.Inventory;
 import com.strata.server.ItemStack;
@@ -20,7 +23,7 @@ public class Gui {
    private int lastLoggedS = -1;
 
    public static int autoScale(int screenW, int screenH) {
-      for (int s = 5; s >= 1; s--) {
+      for (int s = 3; s >= 1; s--) {
          if (screenW / s >= 320 && screenH / s >= 240) {
             return s;
          }
@@ -313,29 +316,67 @@ public class Gui {
 
    private void renderItemIcon(int x, int y, int blockId) {
       Block b = Blocks.byId(blockId);
+      if (b instanceof CactusBlock c) {
+         float[] white = BiomeTints.colorFor(BiomeTints.NONE, BiomeTints.DEFAULT_BIOME);
+         this.isoBox(x, y, c.topTexture, c.sideTexture,
+            1.0F / 16.0F, 0.0F, 1.0F / 16.0F, 15.0F / 16.0F, 1.0F, 15.0F / 16.0F,
+            white, white, -1, white);
+         return;
+      }
+      if (b instanceof SnowBlock) {
+         float[] white = BiomeTints.colorFor(BiomeTints.NONE, BiomeTints.DEFAULT_BIOME);
+         this.isoBox(x, y, b.texture, b.texture,
+            0.0F, 0.0F, 0.0F, 1.0F, 2.0F / 16.0F, 1.0F, white, white, -1, white);
+         return;
+      }
       if (!(b instanceof CubeBlock c)) {
          this.renderTileIcon(x, y, 16, Blocks.particleTile(blockId));
          return;
       }
-       float[] top = AtlasStitcher.uv(c.topTexture);
-      float[] side = AtlasStitcher.uv(c.sideTexture);
+      float[] topTint = BiomeTints.colorFor(AtlasStitcher.tintKind(c.topTexture), BiomeTints.DEFAULT_BIOME);
+      float[] sideTint = BiomeTints.colorFor(AtlasStitcher.tintKind(c.sideTexture), BiomeTints.DEFAULT_BIOME);
+      float[] overlayTint = BiomeTints.colorFor(
+         c.overlayTexture < 0 ? BiomeTints.NONE : AtlasStitcher.tintKind(c.overlayTexture), BiomeTints.DEFAULT_BIOME);
+      this.isoBox(x, y, c.topTexture, c.sideTexture,
+         0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F,
+         topTint, sideTint, c.overlayTexture, overlayTint);
+   }
+
+   private void isoBox(int x, int y, int topTile, int sideTile,
+         float x0, float y0, float z0, float x1, float y1, float z1,
+         float[] topTint, float[] sideTint, int overlay, float[] overlayTint) {
+      float[] top = AtlasStitcher.uv(topTile);
+      float[] side = AtlasStitcher.uv(sideTile);
       Tesselator t = Tesselator.SHARED;
       int s = this.lastScale;
-      t.color(1.0F, 1.0F, 1.0F);
-      this.isoVert(t, top[2], top[3], x, y, 1, 1, 1, s);
-      this.isoVert(t, top[2], top[1], x, y, 1, 1, 0, s);
-      this.isoVert(t, top[0], top[1], x, y, 0, 1, 0, s);
-      this.isoVert(t, top[0], top[3], x, y, 0, 1, 1, s);
-      t.color(0.6F, 0.6F, 0.6F);
-      this.isoVert(t, side[0], side[3], x, y, 1, 0, 1, s);
-      this.isoVert(t, side[2], side[3], x, y, 1, 0, 0, s);
-      this.isoVert(t, side[2], side[1], x, y, 1, 1, 0, s);
-      this.isoVert(t, side[0], side[1], x, y, 1, 1, 1, s);
-      t.color(0.8F, 0.8F, 0.8F);
-      this.isoVert(t, side[0], side[1], x, y, 0, 1, 1, s);
-      this.isoVert(t, side[0], side[3], x, y, 0, 0, 1, s);
-      this.isoVert(t, side[2], side[3], x, y, 1, 0, 1, s);
-      this.isoVert(t, side[2], side[1], x, y, 1, 1, 1, s);
+      t.color(topTint[0], topTint[1], topTint[2]);
+      this.isoVert(t, top[2], top[3], x, y, x1, y1, z1, s);
+      this.isoVert(t, top[2], top[1], x, y, x1, y1, z0, s);
+      this.isoVert(t, top[0], top[1], x, y, x0, y1, z0, s);
+      this.isoVert(t, top[0], top[3], x, y, x0, y1, z1, s);
+      t.color(0.6F * sideTint[0], 0.6F * sideTint[1], 0.6F * sideTint[2]);
+      this.isoVert(t, side[0], side[3], x, y, x1, y0, z1, s);
+      this.isoVert(t, side[2], side[3], x, y, x1, y0, z0, s);
+      this.isoVert(t, side[2], side[1], x, y, x1, y1, z0, s);
+      this.isoVert(t, side[0], side[1], x, y, x1, y1, z1, s);
+      t.color(0.8F * sideTint[0], 0.8F * sideTint[1], 0.8F * sideTint[2]);
+      this.isoVert(t, side[0], side[1], x, y, x0, y1, z1, s);
+      this.isoVert(t, side[0], side[3], x, y, x0, y0, z1, s);
+      this.isoVert(t, side[2], side[3], x, y, x1, y0, z1, s);
+      this.isoVert(t, side[2], side[1], x, y, x1, y1, z1, s);
+      if (overlay >= 0) {
+         float[] ov = AtlasStitcher.uv(overlay);
+         t.color(0.6F * overlayTint[0], 0.6F * overlayTint[1], 0.6F * overlayTint[2]);
+         this.isoVert(t, ov[0], ov[3], x, y, x1 + 0.02F, y0, z1, s);
+         this.isoVert(t, ov[2], ov[3], x, y, x1 + 0.02F, y0, z0, s);
+         this.isoVert(t, ov[2], ov[1], x, y, x1 + 0.02F, y1, z0, s);
+         this.isoVert(t, ov[0], ov[1], x, y, x1 + 0.02F, y1, z1, s);
+         t.color(0.8F * overlayTint[0], 0.8F * overlayTint[1], 0.8F * overlayTint[2]);
+         this.isoVert(t, ov[0], ov[1], x, y, x0, y1, z1 + 0.02F, s);
+         this.isoVert(t, ov[0], ov[3], x, y, x0, y0, z1 + 0.02F, s);
+         this.isoVert(t, ov[2], ov[3], x, y, x1, y0, z1 + 0.02F, s);
+         this.isoVert(t, ov[2], ov[1], x, y, x1, y1, z1 + 0.02F, s);
+      }
    }
 
    static float[] asciiUV(char ch) {

@@ -51,6 +51,7 @@ public final class Blocks {
    public static final int MUSHROOM_CAP_BROWN_ID = 46;
    public static final int MUSHROOM_CAP_RED_ID = 47;
    public static final int SNOW_BLOCK_ID = 48;
+   public static final int OBSIDIAN_ID = 49;
 
    private static final Block[] BY_ID = new Block[256];
 
@@ -60,7 +61,7 @@ public final class Blocks {
          AtlasStitcher.slot("blocks/grass_top.png"),
          AtlasStitcher.slot("blocks/grass_side.png"), dirt,
          AtlasStitcher.slot("blocks/grass_side_overlay.png"), 0).hardness(18).drops(DIRT_ID));
-      register(new CubeBlock(STONE_ID, AtlasStitcher.slot("blocks/stone.png")).hardness(60).drops(COBBLE_ID));
+      register(new CubeBlock(STONE_ID, AtlasStitcher.slot("blocks/stone.png")).hardness(45).drops(COBBLE_ID));
       register(new CubeBlock(DIRT_ID, dirt).hardness(15));
       register(new CubeBlock(COBBLE_ID, AtlasStitcher.slot("blocks/cobblestone.png")).hardness(60));
       register(new CubeBlock(SAND_ID, AtlasStitcher.slot("blocks/sand.png")).hardness(15));
@@ -70,25 +71,25 @@ public final class Blocks {
       register(new CubeBlock(GOLD_ID, AtlasStitcher.slot("blocks/gold_ore.png")).hardness(90));
       register(new CubeBlock(DIAMOND_ID, AtlasStitcher.slot("blocks/diamond_ore.png")).hardness(90));
       register(new CubeBlock(LAPIS_ID, AtlasStitcher.slot("blocks/lapis_ore.png")).hardness(90));
-      register(new CubeBlock(GRAVEL_ID, AtlasStitcher.slot("blocks/gravel.png")).hardness(15));
+      register(new CubeBlock(GRAVEL_ID, AtlasStitcher.slot("blocks/gravel.png")).hardness(18));
       register(new LavaBlock(LAVA_ID, AtlasStitcher.slot("blocks/lava_still.png"), 15).hardness(5));
       register(new WaterBlock(WATER_ID, AtlasStitcher.slot("blocks/water_still.png"), 0).hardness(5));
       register(new TorchBlock(TORCH_ID, AtlasStitcher.slot("blocks/torch_on.png"), 14).hardness(5));
-      register(new CubeBlock(LEAF_ID, AtlasStitcher.slot("blocks/tinted/oak_leaves.png")).hardness(10)
-         .drops(() -> Rng.world().nextInt(4) == 0 ? SAPLING_ID : 0));
+      register(new CubeBlock(LEAF_ID, AtlasStitcher.slot("blocks/tinted/oak_leaves.png")).hardness(6)
+         .drops(() -> Rng.world().nextInt(20) == 0 ? SAPLING_ID : 0));
       register(new FlowerBlock(ROSE_ID, AtlasStitcher.slot("blocks/rose.png")).hardness(5));
       register(new FlowerBlock(DANDELION_ID, AtlasStitcher.slot("blocks/dandelion.png")).hardness(5));
-      register(new FlowerBlock(TALL_GRASS_ID, AtlasStitcher.slot("blocks/tall_grass.png"), 0.4F, 0.8F).hardness(5));
+      register(new FlowerBlock(TALL_GRASS_ID, AtlasStitcher.slot("blocks/tall_grass.png"), 0.4F, 0.8F).hardness(5).drops(0));
       register(new FlowerBlock(SAPLING_ID, AtlasStitcher.slot("blocks/oak_sapling.png")).hardness(5));
       register(new CubeBlock(WOOD_ID,
          AtlasStitcher.slot("blocks/oak_log_top.png"),
          AtlasStitcher.slot("blocks/oak_log_side.png"),
-         AtlasStitcher.slot("blocks/oak_log_top.png")).hardness(30));
-      register(new CubeBlock(PLANKS_ID, AtlasStitcher.slot("blocks/oak_planks.png")).hardness(30));
+         AtlasStitcher.slot("blocks/oak_log_top.png")).hardness(60));
+      register(new CubeBlock(PLANKS_ID, AtlasStitcher.slot("blocks/oak_planks.png")).hardness(60));
       register(new CubeBlock(SANDSTONE_ID,
          AtlasStitcher.slot("blocks/sandstone_top.png"),
          AtlasStitcher.slot("blocks/sandstone_side.png"),
-         AtlasStitcher.slot("blocks/sandstone_bottom.png")).hardness(60));
+         AtlasStitcher.slot("blocks/sandstone_bottom.png")).hardness(24));
       register(new IceBlock(ICE_ID, AtlasStitcher.slot("blocks/ice.png")).hardness(15).drops(0));
       register(new CubeBlock(MYCELIUM_ID,
          AtlasStitcher.slot("blocks/mycelium_top.png"),
@@ -96,12 +97,12 @@ public final class Blocks {
       register(new CactusBlock(CACTUS_ID,
          AtlasStitcher.slot("blocks/cactus_top.png"),
          AtlasStitcher.slot("blocks/cactus_side.png"),
-         AtlasStitcher.slot("blocks/cactus_bottom.png")).hardness(15));
+         AtlasStitcher.slot("blocks/cactus_bottom.png")).hardness(12));
       register(new ReedBlock(REED_ID, AtlasStitcher.slot("blocks/reeds.png"), 0.375F, 1.0F).hardness(5));
       register(new DeadbushBlock(DEADBUSH_ID, AtlasStitcher.slot("blocks/deadbush.png"), 0.4F, 0.8F).hardness(5).drops(0));
       register(new MushroomBlock(MUSHROOM_BROWN_ID, AtlasStitcher.slot("blocks/mushroom_brown.png"), 0.2F, 0.4F).hardness(5));
       register(new MushroomBlock(MUSHROOM_RED_ID, AtlasStitcher.slot("blocks/mushroom_red.png"), 0.2F, 0.4F).hardness(5));
-      register(new CubeBlock(CLAY_ID, AtlasStitcher.slot("blocks/clay.png")).hardness(15));
+      register(new CubeBlock(CLAY_ID, AtlasStitcher.slot("blocks/clay.png")).hardness(18));
       register(new CubeBlock(PUMPKIN_ID,
          AtlasStitcher.slot("blocks/pumpkin_top.png"),
          AtlasStitcher.slot("blocks/pumpkin_side.png"),
@@ -112,33 +113,34 @@ public final class Blocks {
       register(new CubeBlock(BIRCH_LOG_ID,
          AtlasStitcher.slot("blocks/birch_log_top.png"),
          AtlasStitcher.slot("blocks/birch_log_side.png"),
-         AtlasStitcher.slot("blocks/birch_log_top.png")).hardness(30));
+         AtlasStitcher.slot("blocks/birch_log_top.png")).hardness(60));
       register(new CubeBlock(SPRUCE_LOG_ID,
          AtlasStitcher.slot("blocks/spruce_log_top.png"),
          AtlasStitcher.slot("blocks/spruce_log_side.png"),
-         AtlasStitcher.slot("blocks/spruce_log_top.png")).hardness(30));
-      register(new CubeBlock(BIRCH_LEAVES_ID, AtlasStitcher.slot("blocks/birch_leaves.png")).hardness(10)
-         .drops(() -> Rng.world().nextInt(4) == 0 ? BIRCH_SAPLING_ID : 0));
-      register(new CubeBlock(SPRUCE_LEAVES_ID, AtlasStitcher.slot("blocks/spruce_leaves.png")).hardness(10)
-         .drops(() -> Rng.world().nextInt(4) == 0 ? SPRUCE_SAPLING_ID : 0));
+         AtlasStitcher.slot("blocks/spruce_log_top.png")).hardness(60));
+      register(new CubeBlock(BIRCH_LEAVES_ID, AtlasStitcher.slot("blocks/birch_leaves.png")).hardness(6)
+         .drops(() -> Rng.world().nextInt(20) == 0 ? BIRCH_SAPLING_ID : 0));
+      register(new CubeBlock(SPRUCE_LEAVES_ID, AtlasStitcher.slot("blocks/spruce_leaves.png")).hardness(6)
+         .drops(() -> Rng.world().nextInt(20) == 0 ? SPRUCE_SAPLING_ID : 0));
       register(new FlowerBlock(BIRCH_SAPLING_ID, AtlasStitcher.slot("blocks/birch_sapling.png")).hardness(5));
       register(new FlowerBlock(SPRUCE_SAPLING_ID, AtlasStitcher.slot("blocks/spruce_sapling.png")).hardness(5));
       register(new CubeBlock(MOSSY_COBBLE_ID, AtlasStitcher.slot("blocks/mossy_cobblestone.png")).hardness(60));
       register(new CubeBlock(REDSTONE_ORE_ID, AtlasStitcher.slot("blocks/redstone_ore.png")).hardness(90));
-      register(new CubeBlock(MOB_SPAWNER_ID, AtlasStitcher.slot("blocks/mob_spawner.png")).hardness(60).drops(0));
+      register(new CubeBlock(MOB_SPAWNER_ID, AtlasStitcher.slot("blocks/mob_spawner.png")).hardness(150).drops(0));
       register(new CubeBlock(MUSHROOM_STEM_ID,
          AtlasStitcher.slot("blocks/mushroom_block_inside.png"),
          AtlasStitcher.slot("blocks/mushroom_block_skin_stem.png"),
-         AtlasStitcher.slot("blocks/mushroom_block_inside.png")).hardness(30));
+         AtlasStitcher.slot("blocks/mushroom_block_inside.png")).hardness(6));
       register(new CubeBlock(MUSHROOM_CAP_BROWN_ID,
          AtlasStitcher.slot("blocks/mushroom_block_skin_brown.png"),
          AtlasStitcher.slot("blocks/mushroom_block_skin_brown.png"),
-         AtlasStitcher.slot("blocks/mushroom_block_inside.png")).hardness(10));
+         AtlasStitcher.slot("blocks/mushroom_block_inside.png")).hardness(6));
       register(new CubeBlock(MUSHROOM_CAP_RED_ID,
          AtlasStitcher.slot("blocks/mushroom_block_skin_red.png"),
          AtlasStitcher.slot("blocks/mushroom_block_skin_red.png"),
-         AtlasStitcher.slot("blocks/mushroom_block_inside.png")).hardness(10));
-      register(new CubeBlock(SNOW_BLOCK_ID, AtlasStitcher.slot("blocks/snow.png")).hardness(15).drops(SNOW_LAYER_ID));
+         AtlasStitcher.slot("blocks/mushroom_block_inside.png")).hardness(6));
+      register(new CubeBlock(SNOW_BLOCK_ID, AtlasStitcher.slot("blocks/snow.png")).hardness(6).drops(SNOW_LAYER_ID));
+      register(new CubeBlock(OBSIDIAN_ID, AtlasStitcher.slot("blocks/obsidian.png")).hardness(1500));
    }
 
    private Blocks() {
@@ -190,6 +192,10 @@ public final class Blocks {
 
    public static boolean isFalling(int id) {
       return BlockTags.falling(id);
+   }
+
+   public static boolean isOpaqueCube(int id) {
+      return isSolid(id) && !isLeaves(id) && id != CACTUS_ID && id != ICE_ID;
    }
 
    public static boolean blocksLight(int id) {

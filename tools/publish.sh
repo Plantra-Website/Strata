@@ -3,6 +3,11 @@ set -e
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 TMPDIR="${TMPDIR:-/tmp}"
+PYTHON="/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9"
+if [ ! -x "$PYTHON" ]; then
+  echo "need $PYTHON (Xcode command line tools)" >&2
+  exit 1
+fi
 
 PUSH=""
 if [ "$1" = "push" ]; then
@@ -39,7 +44,7 @@ cp -r stripped/src stripped/test res lib build.sh options.txt publish/
 cp pack/ATTRIBUTION-Pixel-Perfection-Fidelity.txt publish/ATTRIBUTION.md
 rm -rf publish/tools publish/TODO.md
 mkdir -p publish/tools
-python3 - "$ROOT/tools/publish.sh" publish/tools/publish.sh <<'PYEOF'
+"$PYTHON" - "$ROOT/tools/publish.sh" publish/tools/publish.sh <<'PYEOF'
 import re, sys
 src, dst = sys.argv[1], sys.argv[2]
 out, in_doc, marker = [], False, ""
@@ -60,14 +65,14 @@ for i, line in enumerate(open(src).read().split("\n")):
     out.append(line)
 open(dst, "w").write("\n".join(out))
 PYEOF
-python3 -c "
+"$PYTHON" -c "
 p = 'publish/tools/publish.sh'
 s = open(p).read().replace('you@example.com', 'you@example.com')
 open(p, 'w').write(s)
 "
 rm -rf stripped
 cp README.md publish/README.md
-printf 'out/\n*.DS_Store\n__MACOSX/\n' > publish/.gitignore
+printf 'out/\nout-test/\n*.DS_Store\n__MACOSX/\n' > publish/.gitignore
 
 cd publish
 if [ ! -d .git ]; then

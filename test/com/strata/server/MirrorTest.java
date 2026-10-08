@@ -18,7 +18,7 @@ public class MirrorTest {
    static int surface(Level l, int x, int z) {
       for (int y = l.depth - 1; y >= 0; y--) {
          int t = l.getTile(x, y, z);
-         if (t > 0 && t != 13 && t != 14 && t != 15 && t != 16 && t != 17 && t != 20) return y;
+         if (t > 0 && t != 13 && t != 14 && t != 15 && t != 16 && t != 17 && t != 20 && t != 33) return y;
       }
       return -1;
    }

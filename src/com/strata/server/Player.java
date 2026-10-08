@@ -25,11 +25,16 @@ public class Player extends Entity {
 
    @Override
    protected float yOffset() {
-      return 1.62F;
+      return EYE_HEIGHT;
    }
 
-   private void resetPos() {
-        this.landed = false;
+   static final float EYE_HEIGHT = 1.62F;
+
+    private void resetPos() {
+       this.xd = 0.0F;
+       this.yd = 0.0F;
+       this.zd = 0.0F;
+       this.landed = false;
         float[] spawn = this.level.spawnPoint();
         if (spawn != null) {
            this.teleport(spawn[0], spawn[1], spawn[2]);
@@ -59,7 +64,7 @@ public class Player extends Entity {
                  if (top >= 0 && top + 2 < this.level.depth
                     && !this.level.isSolidTile(cx, top + 1, cz)
                     && !this.level.isSolidTile(cx, top + 2, cz)) {
-                    this.setPos(cx + 0.5F, top + 1.9F, cz + 0.5F);
+                    this.setPos(cx + 0.5F, top + 1.0F, cz + 0.5F);
                     placed = true;
                     break outer;
                  }
@@ -74,7 +79,7 @@ public class Player extends Entity {
    public void teleport(float x, float y, float z) {
       this.setPos(x, y, z);
       this.xo = x;
-      this.yo = y;
+      this.yo = y + EYE_HEIGHT;
       this.zo = z;
       this.xd = 0.0F;
       this.yd = 0.0F;
@@ -83,11 +88,10 @@ public class Player extends Entity {
 
    private void setPos(float x, float y, float z) {
       this.x = x;
-      this.y = y;
+      this.y = y + EYE_HEIGHT;
       this.z = z;
       float w = 0.3F;
-      float h = 0.9F;
-      this.bb = new AABB(x - w, y - h, z - w, x + w, y + h, z + w);
+      this.bb = new AABB(x - w, y, z - w, x + w, y + 1.8F, z + w);
       this.fallPeak = this.bb.y0;
    }
 
@@ -110,6 +114,11 @@ public class Player extends Entity {
 
    public void turn(float xo, float yo) {
       this.yRot = (float)(this.yRot + xo * 0.15);
+      if (this.yRot > 180.0F) {
+         this.yRot -= 360.0F;
+      } else if (this.yRot < -180.0F) {
+         this.yRot += 360.0F;
+      }
       this.xRot = (float)(this.xRot - yo * 0.15);
       if (this.xRot < -90.0F) {
          this.xRot = -90.0F;
@@ -125,11 +134,23 @@ public class Player extends Entity {
        this.yo = this.y;
        this.zo = this.z;
        this.yRot = in.yaw;
-       this.xRot = in.pitch;
-       if (this.spectator) {
-          this.tickSpectator(in);
-          return;
+       if (Float.isNaN(in.pitch)) {
+          this.xRot = 0.0F;
+       } else if (in.pitch < -90.0F) {
+          this.xRot = -90.0F;
+       } else if (in.pitch > 90.0F) {
+          this.xRot = 90.0F;
+       } else {
+          this.xRot = in.pitch;
        }
+        if (this.spectator) {
+           this.tickSpectator(in);
+           return;
+        }
+        if (this.bb.y0 < -10.0F) {
+           this.hurt(20);
+           return;
+        }
        float xa = 0.0F;
       float ya = 0.0F;
       if (in.reset) {
@@ -187,8 +208,8 @@ public class Player extends Entity {
          if (this.onGround) {
             if (this.landed) {
                float fall = this.fallPeak - feet;
-               if (fall > 3.5F) {
-                  this.hurt((int)(fall - 3.0F));
+               if (fall > 3.0F) {
+                  this.hurt((int)Math.ceil(fall - 3.0F));
                }
             }
             this.landed = true;
@@ -207,7 +228,7 @@ public class Player extends Entity {
             this.lavaClock = 0;
          }
          if (feetId == Blocks.CACTUS_ID || underId == Blocks.CACTUS_ID) {
-            if (++this.cactusClock >= 20) {
+            if (++this.cactusClock >= 30) {
                this.cactusClock = 0;
                this.hurt(1);
             }
@@ -257,20 +278,21 @@ public class Player extends Entity {
        this.xd *= 0.7F;
        this.zd *= 0.7F;
        this.onGround = false;
-       this.setPos(this.x, this.y, this.z);
+       this.setPos(this.x, this.y - EYE_HEIGHT, this.z);
     }
 
     public void evict() {
        for (int i = 0; i < 64 && !this.level.getCubes(this.bb).isEmpty(); i++) {
-          this.setPos(this.x, this.y + 1.0F, this.z);
+          this.setPos(this.x, this.bb.y0 + 1.0F, this.z);
        }
+       this.fallPeak = this.bb.y0;
     }
 
     public void applyState(float x, float y, float z, boolean onGround, boolean spectator, int hp) {
        this.xo = this.x;
        this.yo = this.y;
        this.zo = this.z;
-       this.setPos(x, y, z);
+       this.setPos(x, y - EYE_HEIGHT, z);
        this.x = x;
        this.y = y;
        this.z = z;

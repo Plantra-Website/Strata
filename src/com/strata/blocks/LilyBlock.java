@@ -11,7 +11,10 @@ public class LilyBlock extends Block {
 
    @Override
    public boolean canStay(BlockView level, int x, int y, int z) {
-      return level.getTile(x, y - 1, z) == Blocks.WATER_ID;
+      if (level.getTile(x, y - 1, z) != Blocks.WATER_ID) {
+         return false;
+      }
+      return level.getBlockState(x, y - 1, z).data == 0;
    }
 
    @Override
@@ -34,22 +37,28 @@ public class LilyBlock extends Block {
          float v0 = uv[1];
          float v1 = uv[3];
          lightColor(t, level, x, y, z, 1.0F);
-         float yy = y + LIFT;
-         int h = x * 3129871 ^ z * 116129781 ^ y;
-         h = h * h * 42317861 + h * 11;
-         int rot = (h >> 16) & 3;
-         float[] cx = {x, x, x + 1.0F, x + 1.0F};
-         float[] cz = {z, z + 1.0F, z + 1.0F, z};
-         float[] cu = {u0, u0, u1, u1};
-         float[] cv = {v1, v0, v0, v1};
-         t.quad(cx[rot & 3], yy, cz[rot & 3],
-            cx[(rot + 1) & 3], yy, cz[(rot + 1) & 3],
-            cx[(rot + 2) & 3], yy, cz[(rot + 2) & 3],
-            cx[(rot + 3) & 3], yy, cz[(rot + 3) & 3],
-            cu[rot & 3], cv[rot & 3],
-            cu[(rot + 1) & 3], cv[(rot + 1) & 3],
-            cu[(rot + 2) & 3], cv[(rot + 2) & 3],
-            cu[(rot + 3) & 3], cv[(rot + 3) & 3]);
+         tintFor(t, level, this.texture, x, z);
+          float yy = y + LIFT;
+          int h = x * 3129871 ^ z * 116129781 ^ y;
+          h = h * h * 42317861 + h * 11;
+          int rot = (h >> 16) & 3;
+          float[] cx = {x, x, x + 1.0F, x + 1.0F};
+          float[] cz = {z, z + 1.0F, z + 1.0F, z};
+          float[] cu = {u0, u0, u1, u1};
+          float[] cv = {v1, v0, v0, v1};
+          int[] o = {rot & 3, (rot + 1) & 3, (rot + 2) & 3, (rot + 3) & 3};
+          for (int k = 0; k < 4; k++) {
+             int i = o[k];
+             t.tex(cu[i], cv[i]);
+             t.vertex(cx[i], yy, cz[i]);
+          }
+          t.color(0.5F, level.getSkyLevel(x, y, z) / 15.0F * 0.5F,
+             level.getBlockLevel(x, y, z) / 15.0F * 0.5F);
+          for (int k = 0; k < 4; k++) {
+             int i = o[(4 - k) & 3];
+             t.tex(cu[i], cv[i]);
+             t.vertex(cx[i], yy, cz[i]);
+          }
       }
    }
 }

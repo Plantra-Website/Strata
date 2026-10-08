@@ -14,7 +14,11 @@ public class WorldSlotTest {
       if (!cond) { failures++; System.out.println("FAIL: " + msg); }
    }
 
-   public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws Exception {
+      com.strata.server.ItemTest.wipeDir(new File("freshworld"));
+      com.strata.server.ItemTest.wipeDir(new File("slotA"));
+      com.strata.server.ItemTest.wipeDir(new File("slotB"));
+      com.strata.server.ItemTest.wipeDir(new File("slotC"));
       File fresh = new File("freshworld");
       WorldMeta m0 = WorldMeta.load(fresh);
       check(m0.seed == TerrainGenerator.DEFAULT_SEED, "default seed");
@@ -34,6 +38,15 @@ public class WorldSlotTest {
       corrupt.close();
       WorldMeta mCorrupt = WorldMeta.load(fresh);
       check(mCorrupt.seed == TerrainGenerator.DEFAULT_SEED, "corrupt defaults seed");
+
+      WorldMeta.save(fresh, 555L, 77L, false, null, "");
+      File dst = WorldMeta.fileFor(fresh);
+      File tmp = new File(fresh, "world.dat.tmp");
+      java.nio.file.Files.copy(dst.toPath(), tmp.toPath(),
+         java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      check(dst.delete(), "crash staged");
+      WorldMeta mCrash = WorldMeta.load(fresh);
+      check(mCrash.seed == 555L && mCrash.time == 77L, "tmp recovers seed/time");
 
       File wa = new File("slotA");
       File wb = new File("slotB");

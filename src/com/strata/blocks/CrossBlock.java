@@ -58,6 +58,7 @@ float y0 = y + 0.0F;
       float v0 = uv[1];
       float v1 = uv[3];
       lightColor(t, level, x, y, z, 1.0F);
+      tintFor(t, level, this.texture, x, z);
          float jx = 0.0F, jz = 0.0F, jy = 0.0F;
          if (this.id == Blocks.TALL_GRASS_ID) {
             int jh = CubeBlock.hash(x, y, z, 7);

@@ -49,7 +49,13 @@ public final class WorldMeta {
    public static WorldMeta load(File worldDir) {
       File f = fileFor(worldDir);
       if (!f.isFile()) {
-         return new WorldMeta(TerrainGenerator.DEFAULT_SEED, 0L);
+         File tmp = new File(worldDir, "world.dat.tmp");
+         if (tmp.isFile()) {
+            Log.warn("world", "world.dat missing, recovering from world.dat.tmp");
+            f = tmp;
+         } else {
+            return new WorldMeta(TerrainGenerator.DEFAULT_SEED, 0L);
+         }
       }
       try {
          DataInputStream in = new DataInputStream(new FileInputStream(f));

@@ -63,7 +63,13 @@ public final class PlayerData {
    public static PlayerData load(File worldDir) {
       File f = fileFor(worldDir);
       if (!f.isFile()) {
-         return new PlayerData();
+         File tmp = new File(worldDir, "player.dat.tmp");
+         if (tmp.isFile()) {
+            Log.warn("world", "player.dat missing, recovering from player.dat.tmp");
+            f = tmp;
+         } else {
+            return new PlayerData();
+         }
       }
       try {
          DataInputStream in = new DataInputStream(new FileInputStream(f));

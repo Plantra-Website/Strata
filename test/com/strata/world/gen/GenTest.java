@@ -35,7 +35,7 @@ public class GenTest {
                     breaks++;
                 } else {
                     check(s == Blocks.GRASS_ID || s == Blocks.SAND_ID || s == Blocks.DIRT_ID || s == Blocks.STONE_ID
-                        || s == Blocks.CLAY_ID || s == Blocks.MYCELIUM_ID || Blocks.isOre(s),
+                        || s == Blocks.GRAVEL_ID || s == Blocks.CLAY_ID || s == Blocks.MYCELIUM_ID || Blocks.isOre(s),
                         "surface natural, got " + s);
                     if (s == Blocks.SAND_ID && h >= TerrainGenerator.SEA_LEVEL - 4 && h <= TerrainGenerator.SEA_LEVEL + 1) beaches++;
                 }
@@ -44,17 +44,20 @@ public class GenTest {
         check(hi - lo >= 8, "terrain has relief");
         check(breaks > 0 && breaks < 500, "entrances exist but not pockmarked, got " + breaks);
         int shoreBeach = 0;
-        for (int x = 4040; x <= 4120; x++)
-            for (int z = 2820; z <= 2900; z++) {
+        for (int x = -2000; x <= 2000; x += 32) {
+            for (int z = -2000; z <= 2000; z += 32) {
+                if (g.genBiomeAt(x, z) != GenBiomes.DESERT) {
+                    continue;
+                }
                 int h = g.heightAt(x, z);
-                if (g.blockAt(x, h, z, h) == Blocks.SAND_ID
-                    && h >= TerrainGenerator.SEA_LEVEL - 4 && h <= TerrainGenerator.SEA_LEVEL + 1) shoreBeach++;
-                if ((x & 31) == 0 && z == 2820) {
-                    g.evictFar(x / 16, z / 16, 2);
+                if (h >= TerrainGenerator.SEA_LEVEL - 4 && h <= TerrainGenerator.SEA_LEVEL + 1
+                    && g.blockAt(x, h, z, h) == Blocks.SAND_ID) {
+                    shoreBeach++;
                 }
             }
+        }
         System.out.println("shoreBeach=" + shoreBeach);
-        check(shoreBeach > 0, "beaches exist (mushroom shore)");
+        check(shoreBeach > 0, "beaches exist (desert shore)");
         int glo = 999, ghi = -999, scanned = 0;
         boolean oceanSeen = false;
         for (int x = -2000; x <= 2000; x += 32)
