@@ -76,6 +76,7 @@ open(p, 'w').write(s)
 rm -rf stripped
 cp README.md publish/README.md
 printf 'out/\nout-test/\n*.DS_Store\n__MACOSX/\n' > publish/.gitignore
+printf '*.cbl text diff linguist-language=COBOL\n' > publish/.gitattributes
 
 cd publish
 if [ ! -d .git ]; then
