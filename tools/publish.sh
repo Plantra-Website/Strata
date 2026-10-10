@@ -41,6 +41,9 @@ if [ -n "$HAD_GIT" ]; then
   mv "$TMPDIR/publish-git-keep" publish/.git
 fi
 cp -r stripped/src stripped/test res lib build.sh options.txt publish/
+mkdir -p publish/src/com/strata/terminal
+cp src/com/strata/terminal/viewer.cbl src/com/strata/terminal/README.md \
+  publish/src/com/strata/terminal/
 cp pack/ATTRIBUTION-Pixel-Perfection-Fidelity.txt publish/ATTRIBUTION.md
 rm -rf publish/tools publish/TODO.md
 mkdir -p publish/tools

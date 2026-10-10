@@ -41,6 +41,9 @@ each jar).
   world, then play it (needs an unused `--world` dir).
 - `--pack NAME` — texture-pack zip file name under `pack/` (missing file
   reverts to built-ins).
+- `--terminal [WxH[:FPS]]` — mirror each frame to `/tmp/strata-frame.bin`
+  (raw RGB) for the external terminal viewer (default `160x120@15`;
+  the game loop caps itself to FPS while the tap is active).
 
 ## Controls
 

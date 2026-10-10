@@ -9,6 +9,7 @@ import com.strata.core.AABB;
 import com.strata.core.Config;
 import com.strata.core.DayCycle;
 import com.strata.core.Log;
+import com.strata.core.MathHelper;
 import com.strata.core.Profiler;
 import com.strata.core.Rng;
 import com.strata.world.Level;
@@ -18,6 +19,7 @@ import com.strata.world.WorldMeta;
 import com.strata.world.gen.TerrainGenerator;
 import com.strata.net.BreakEffect;
 import com.strata.net.BulkTiles;
+import com.strata.net.AttackMob;
 import com.strata.net.DebugGive;
 import com.strata.net.FallingSpawn;
 import com.strata.net.HurtSelf;
@@ -25,6 +27,8 @@ import com.strata.net.InputState;
 import com.strata.net.InventorySync;
 import com.strata.net.ItemRemove;
 import com.strata.net.ItemSpawn;
+import com.strata.net.MobHurt;
+import com.strata.net.MobSpawn;
 import com.strata.net.SlotClick;
 import com.strata.net.LocalConnection;
 import com.strata.net.Packet;
@@ -48,6 +52,8 @@ public class GameServer implements LevelListener {
    private final java.util.ArrayList<ItemEntity> items = new java.util.ArrayList<>();
    private final java.util.ArrayList<FallingBlock> falling = new java.util.ArrayList<>();
    private int nextEntityId = 1;
+   private final java.util.ArrayList<Zombie> mobs = new java.util.ArrayList<>();
+   private int spawnClock = 0;
    private final ItemStack held = new ItemStack();
    private long timeOfDay = 0;
    private float destroyProgress = 0.0F;
@@ -223,6 +229,8 @@ public class GameServer implements LevelListener {
             }
             this.sendInv();
             Log.info("debug", "gave builder kit (hotbar replaced: dirt/stone/cobble/torch/leaves/sand/planks/water x64)");
+          } else if (p instanceof AttackMob) {
+             this.handleAttack((AttackMob)p);
           } else if (p instanceof SlotClick) {
              this.inventory.applyClick(((SlotClick)p).slot, this.held);
              this.sendInv();
@@ -253,6 +261,7 @@ public class GameServer implements LevelListener {
       this.tickBreaking(this.lastInput);
       this.tickItems();
       this.tickFallings();
+      this.tickMobs();
        this.level.tickBlockEntities();
        this.level.tickScheduled();
        for (long key : this.level.drainFluidSupport(256)) {
@@ -528,6 +537,115 @@ public class GameServer implements LevelListener {
       ItemRemove r = new ItemRemove();
       r.entityId = e.id;
       this.conn.sendToClient(r);
+   }
+
+   private void tickMobs() {
+      for (int i = 0; i < this.mobs.size(); i++) {
+         Zombie z = this.mobs.get(i);
+         z.tick(this.level, this.player.x, this.player.y, this.player.z,
+            this.player.bb, this.timeOfDay, this.player);
+         if (!z.alive()) {
+            this.mobs.remove(i--);
+            ItemRemove r = new ItemRemove();
+            r.entityId = z.id;
+            this.conn.sendToClient(r);
+         }
+      }
+      for (int i = 0; i < this.mobs.size(); i++) {
+         Zombie z = this.mobs.get(i);
+         float dx = z.x - this.player.x;
+         float dz = z.z - this.player.z;
+         if (dx * dx + dz * dz > 64.0F * 64.0F) {
+            this.mobs.remove(i--);
+            ItemRemove r = new ItemRemove();
+            r.entityId = z.id;
+            this.conn.sendToClient(r);
+         }
+      }
+      if (++this.spawnClock >= 100) {
+         this.spawnClock = 0;
+         this.trySpawnMob();
+      }
+   }
+
+   int mobCount() {
+      return this.mobs.size();
+   }
+
+   Zombie mob(int i) {
+      return this.mobs.get(i);
+   }
+
+   int spawnZombie(float x, float y, float z) {
+      Zombie mob = new Zombie(this.nextEntityId++, x, y, z);
+      this.mobs.add(mob);
+      MobSpawn s = new MobSpawn();
+      s.entityId = mob.id;
+      s.mobType = MobSpawn.ZOMBIE;
+      s.x = mob.x;
+      s.y = mob.y;
+      s.z = mob.z;
+      this.conn.sendToClient(s);
+      return mob.id;
+   }
+
+   private void trySpawnMob() {
+      if (this.mobs.size() >= 6) {
+         return;
+      }
+      if (DayCycle.amount(this.timeOfDay, Config.DAY_LENGTH) >= 0.1F) {
+         return;
+      }
+      java.util.Random rng = Rng.world();
+      for (int t = 0; t < 4; t++) {
+         float a = rng.nextFloat() * (float)Math.PI * 2.0F;
+         float d = 16.0F + rng.nextFloat() * 16.0F;
+         int x = MathHelper.floor(this.player.x + Math.sin(a) * d);
+         int z = MathHelper.floor(this.player.z + Math.cos(a) * d);
+         int top = -1;
+         for (int y = this.level.depth - 1; y >= 0; y--) {
+            int id = this.level.getTile(x, y, z);
+            if (id != 0 && Blocks.isSolid(id)) {
+               top = y;
+               break;
+            }
+         }
+         if (top < 0 || top + 2 >= this.level.depth) {
+            continue;
+         }
+         if (this.level.getTile(x, top + 1, z) != 0 || this.level.getTile(x, top + 2, z) != 0) {
+            continue;
+         }
+         this.spawnZombie(x + 0.5F, top + 1.0F, z + 0.5F);
+         return;
+      }
+   }
+
+   private void handleAttack(AttackMob p) {
+      for (Zombie z : this.mobs) {
+         if (z.id != p.entityId) {
+            continue;
+         }
+         float dx = z.x - this.player.x;
+         float dy = z.y - this.player.y;
+         float dz = z.z - this.player.z;
+         if (dx * dx + dy * dy + dz * dz > 36.0F) {
+            return;
+         }
+         if (!this.level.sightClear(this.player.x, this.player.y, this.player.z,
+               z.x, z.y, z.z)) {
+            return;
+         }
+         if (z.punch(this.player.x, this.player.z)) {
+            MobHurt h = new MobHurt();
+            h.entityId = z.id;
+            h.hp = z.hp;
+            h.xd = z.xd;
+            h.zd = z.zd;
+            this.conn.sendToClient(h);
+         }
+         return;
+      }
    }
 
     private boolean payStock(int blockId, int slot) {

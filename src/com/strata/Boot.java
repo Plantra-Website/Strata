@@ -20,6 +20,12 @@ public class Boot {
              client.setImportImage(new java.io.File(cleanArg(args[++i])));
           } else if ("--pack".equals(args[i]) && i + 1 < args.length) {
              client.setPackName(cleanArg(args[++i]));
+          } else if ("--terminal".equals(args[i])) {
+             String spec = null;
+             if (i + 1 < args.length && args[i + 1].matches("\\d+x\\d+(:\\d+)?")) {
+                spec = args[++i];
+             }
+             client.setTerminalTap(spec);
           }
       }
        client.applyImportDefaults();

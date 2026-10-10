@@ -359,7 +359,8 @@ public class LevelRenderer implements LevelListener {
        if (pickTile > 0) {
           picked = Blocks.byId(pickTile);
        }
-       com.strata.core.AABB box = picked == null ? null : picked.pickBox(this.level, h.x, h.y, h.z);
+       com.strata.core.AABB box = h.box != null ? h.box
+          : picked == null ? null : picked.pickBox(this.level, h.x, h.y, h.z);
        float x0 = box == null ? h.x : box.x0;
        float y0 = box == null ? h.y : box.y0;
        float z0 = box == null ? h.z : box.z0;

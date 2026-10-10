@@ -28,6 +28,7 @@ public class GuiAssetTest {
       sheet("/textures/gui/icons.png");
       sheet("/textures/gui/container/inventory.png");
       asciiSheet("/textures/ascii.png");
+      mobSkin("/textures/entity/zombie.png");
       widgetsSelector();
       if (failures == 0) System.out.println("GUIASSET PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }
@@ -62,6 +63,18 @@ public class GuiAssetTest {
       in.close();
       check(img != null && img.getWidth() == 128 && img.getHeight() == 128,
          path + " is 128x128 (got " + (img == null ? "null" : img.getWidth() + "x" + img.getHeight()) + ")");
+   }
+
+   static void mobSkin(String path) throws Exception {
+      InputStream in = GuiAssetTest.class.getResourceAsStream(path);
+      check(in != null, "present: " + path);
+      if (in == null) {
+         return;
+      }
+      BufferedImage img = ImageIO.read(in);
+      in.close();
+      check(img != null && img.getWidth() == 64 && img.getHeight() == 64,
+         path + " is 64x64 (got " + (img == null ? "null" : img.getWidth() + "x" + img.getHeight()) + ")");
    }
 }
 

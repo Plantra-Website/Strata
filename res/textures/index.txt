@@ -123,6 +123,7 @@ blocks/water_still.png
 blocks/waterlily.png
 blocks/waterlily_flowers.png
 clouds.png
+entity/zombie.png
 foliage.png
 grass.png
 gui/container/inventory.png

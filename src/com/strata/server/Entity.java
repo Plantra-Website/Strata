@@ -22,6 +22,20 @@ public class Entity {
    protected Entity() {
    }
 
+   public static void knockBack(Entity e, float fromX, float fromZ,
+         float strength, float lift) {
+      float dx = e.x - fromX;
+      float dz = e.z - fromZ;
+      float d = (float)Math.sqrt(dx * dx + dz * dz);
+      e.xd *= 0.5F;
+      e.zd *= 0.5F;
+      if (d > 0.001F) {
+         e.xd += dx / d * strength;
+         e.zd += dz / d * strength;
+      }
+      e.yd = e.yd * 0.5F + lift;
+   }
+
    protected float yOffset() {
       return 0.0F;
    }

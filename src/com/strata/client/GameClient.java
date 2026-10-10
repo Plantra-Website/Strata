@@ -13,6 +13,7 @@ import com.strata.core.Profiler;
 import com.strata.core.Timer;
 import com.strata.net.BreakEffect;
 import com.strata.net.BulkTiles;
+import com.strata.net.AttackMob;
 import com.strata.net.DebugGive;
 import com.strata.net.InputState;
 import com.strata.net.InventorySync;
@@ -20,6 +21,8 @@ import com.strata.net.ItemRemove;
 import com.strata.net.FallingSpawn;
 import com.strata.net.HurtSelf;
 import com.strata.net.ItemSpawn;
+import com.strata.net.MobHurt;
+import com.strata.net.MobSpawn;
 import com.strata.net.LocalConnection;
 import com.strata.net.Packet;
 import com.strata.net.PlaceBlock;
@@ -34,6 +37,7 @@ import com.strata.server.GameServer;
 import com.strata.server.Inventory;
 import com.strata.server.ItemStack;
 import com.strata.server.Player;
+import com.strata.server.Zombie;
 import com.strata.world.Level;
 import com.strata.world.mesh.LevelRenderer;
 import com.strata.world.mesh.Raycaster;
@@ -59,6 +63,7 @@ import org.lwjgl.util.glu.GLU;
 public class GameClient implements Runnable {
    private int width;
    private int height;
+   private FrameTap frameTap;
    private final FloatBuffer fogColor = BufferUtils.createFloatBuffer(4);
    private final Timer timer = new Timer(60.0F);
    private Level level;
@@ -67,6 +72,7 @@ public class GameClient implements Runnable {
    private ParticleEngine particleEngine;
    private ItemRenderer itemRenderer;
    private FallingRenderer fallingRenderer;
+   private MobRenderer mobRenderer;
    private int ambientClock = 0;
    private float prevTickY = 0.0F;
    private boolean prevTickGround = true;
@@ -112,15 +118,7 @@ public class GameClient implements Runnable {
     public static final long DAY_LENGTH = Config.DAY_LENGTH;
 
    public static float dayAmount(long time) {
-      double sun = Math.sin(time * Math.PI * 2.0 / DAY_LENGTH);
-      double t = (sun + 0.08) / 0.28;
-      if (t < 0.0) {
-         t = 0.0;
-      }
-      if (t > 1.0) {
-         t = 1.0;
-      }
-      return (float)(t * t * (3.0 - 2.0 * t));
+      return DayCycle.amount(time, DAY_LENGTH);
    }
 
    private static long bootMarkNs = 0L;
@@ -149,6 +147,10 @@ public class GameClient implements Runnable {
 
    public void setPackName(String name) {
       this.packName = name;
+   }
+
+   public void setTerminalTap(String spec) {
+      this.frameTap = FrameTap.fromSpec(spec);
    }
 
    public void applyImportDefaults() {
@@ -268,6 +270,7 @@ public class GameClient implements Runnable {
       this.particleEngine = new ParticleEngine(this.level);
       this.itemRenderer = new ItemRenderer(this.level);
       this.fallingRenderer = new FallingRenderer(this.level);
+      this.mobRenderer = new MobRenderer(this.level);
       InventorySync stock = this.server.inventoryState();
       this.inventory.applySync(stock.blocks, stock.counts);
       mark("stock synced");
@@ -333,6 +336,9 @@ public class GameClient implements Runnable {
          try {
             this.options.save(new File("options.txt"));
          } finally {
+            if (this.frameTap != null) {
+               this.frameTap.close();
+            }
             Mouse.destroy();
             Keyboard.destroy();
             Display.destroy();
@@ -438,7 +444,7 @@ public class GameClient implements Runnable {
       in.jump = Keyboard.isKeyDown(this.options.keyJump) || Keyboard.isKeyDown(219);
       in.up = Keyboard.isKeyDown(this.options.keyJump);
       in.down = Keyboard.isKeyDown(this.options.keyDown) || Keyboard.isKeyDown(54);
-      in.breaking = this.leftDown && this.hitResult != null;
+      in.breaking = this.leftDown && this.hitResult != null && this.hitResult.entityId < 0;
       if (in.breaking) {
          in.breakX = this.hitResult.x;
          in.breakY = this.hitResult.y;
@@ -469,9 +475,16 @@ public class GameClient implements Runnable {
              this.itemRenderer.spawn(s.entityId, s.x, s.y, s.z, s.xd, s.yd, s.zd, s.blockId);
          } else if (p instanceof FallingSpawn s) {
              this.fallingRenderer.spawn(s.entityId, s.blockId, s.x, s.y, s.z);
+         } else if (p instanceof MobSpawn s) {
+            if (s.mobType == MobSpawn.ZOMBIE) {
+               this.mobRenderer.spawn(s.entityId, s.x, s.y, s.z);
+            }
+         } else if (p instanceof MobHurt s) {
+            this.mobRenderer.hurt(s.entityId, s.hp, s.xd, s.zd);
          } else if (p instanceof ItemRemove) {
             this.itemRenderer.remove(((ItemRemove)p).entityId);
             this.fallingRenderer.remove(((ItemRemove)p).entityId);
+            this.mobRenderer.remove(((ItemRemove)p).entityId);
          } else if (p instanceof InventorySync s) {
              this.inventory.applySync(s.blocks, s.counts);
             this.held.blockId = s.heldBlock;
@@ -488,8 +501,9 @@ public class GameClient implements Runnable {
       this.particleEngine.tick();
       this.itemRenderer.tick(this.player.bb);
       this.fallingRenderer.tick();
+      this.mobRenderer.tick(this.player.bb, this.player.x, this.player.y, this.player.z, this.clientTime);
 
-      if (this.leftDown && this.hitResult != null) {
+      if (this.leftDown && this.hitResult != null && this.hitResult.entityId < 0) {
          int tileId = this.level.getTile(this.hitResult.x, this.hitResult.y, this.hitResult.z);
          if (tileId > 0) {
              this.particleEngine.addBlockHitParticles(this.hitResult.x, this.hitResult.y, this.hitResult.z, this.hitResult.f, Blocks.particleTile(tileId));
@@ -575,6 +589,30 @@ public class GameClient implements Runnable {
       float ey = this.player.yo + (this.player.y - this.player.yo) * a;
       float ez = this.player.zo + (this.player.z - this.player.zo) * a;
       this.hitResult = Raycaster.pick(this.level, ex, ey, ez, this.player.yRot, this.player.xRot, 4.0);
+      double yaw = Math.toRadians(this.player.yRot);
+      double pitch = Math.toRadians(this.player.xRot);
+      double dx = Math.sin(yaw) * Math.cos(pitch);
+      double dy = -Math.sin(pitch);
+      double dz = -Math.cos(yaw) * Math.cos(pitch);
+      double bestT = this.hitResult == null || this.hitResult.t < 0.0
+         ? 4.0 : Math.min(4.0, this.hitResult.t);
+      Zombie bestMob = null;
+      for (Zombie z : this.mobRenderer.mobs()) {
+         double[] hit = Raycaster.slabHit(z.bb, ex, ey, ez, dx, dy, dz);
+         if (hit != null && hit[0] < bestT) {
+            bestT = hit[0];
+            bestMob = z;
+         }
+      }
+      if (bestMob != null) {
+         HitResult hit = new HitResult(MathHelper.floor(bestMob.x),
+            MathHelper.floor(bestMob.bb.y0), MathHelper.floor(bestMob.z), -1);
+         hit.entityId = bestMob.id;
+         hit.box = new com.strata.core.AABB(bestMob.bb.x0, bestMob.bb.y0, bestMob.bb.z0,
+            bestMob.bb.x1, bestMob.bb.y1, bestMob.bb.z1);
+         hit.t = bestT;
+         this.hitResult = hit;
+      }
    }
 
    public void render(float a) throws IOException {
@@ -627,9 +665,15 @@ public class GameClient implements Runnable {
             }
             continue;
          }
-         if (Mouse.getEventButton() == 0) {
-            this.leftDown = Mouse.getEventButtonState();
-         }
+          if (Mouse.getEventButton() == 0) {
+             if (Mouse.getEventButtonState() && this.hitResult != null
+                && this.hitResult.entityId >= 0) {
+                AttackMob punch = new AttackMob();
+                punch.entityId = this.hitResult.entityId;
+                this.conn.sendToServer(punch);
+             }
+             this.leftDown = Mouse.getEventButtonState();
+          }
           if (Mouse.getEventButton() == 1 && Mouse.getEventButtonState() && this.hitResult != null && this.paintTile > 0) {
             PlaceBlock place = new PlaceBlock();
             place.x = this.hitResult.x;
@@ -784,6 +828,7 @@ public class GameClient implements Runnable {
       this.particleEngine.render(this.player, a, 0);
       this.itemRenderer.render(this.player, a);
       this.fallingRenderer.render(a);
+      this.mobRenderer.render(a);
       long rPart = System.nanoTime();
 
       GL11.glDisable(GL11.GL_FOG);
@@ -799,7 +844,13 @@ public class GameClient implements Runnable {
       }
       long rGui = System.nanoTime();
 
+      if (this.frameTap != null) {
+         this.frameTap.tap(this.width, this.height);
+      }
       Display.update();
+      if (this.frameTap != null) {
+         Display.sync(this.frameTap.targetFps());
+      }
       long r3 = System.nanoTime();
       this.perfTotalNs += r3 - r0;
       this.perfPickNs += r1 - r0;

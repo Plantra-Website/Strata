@@ -42,6 +42,7 @@ public class Raycaster {
                if (hit != null && hit[0] < bestT) {
                   bestT = hit[0];
                   best = new HitResult(x, y, z, (int)hit[1]);
+                  best.t = bestT;
                }
             }
          }
@@ -62,7 +63,7 @@ public class Raycaster {
       return best;
    }
 
-   static double[] slabHit(AABB box, double ex, double ey, double ez, double dx, double dy, double dz) {
+    public static double[] slabHit(AABB box, double ex, double ey, double ez, double dx, double dy, double dz) {
       double[] xr = axisRange(box.x0, box.x1, ex, dx);
       double[] yr = axisRange(box.y0, box.y1, ey, dy);
       double[] zr = axisRange(box.z0, box.z1, ez, dz);

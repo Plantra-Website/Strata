@@ -95,6 +95,27 @@ public class NetTest {
         check(roundtrip(new TimeCycle()) instanceof TimeCycle, "time cycle marker");
         check(roundtrip(new HurtSelf()) instanceof HurtSelf, "hurt self marker");
 
+        MobSpawn ms = new MobSpawn();
+        ms.entityId = 9;
+        ms.mobType = MobSpawn.ZOMBIE;
+        ms.x = 1.5F;
+        ms.y = 62.5F;
+        ms.z = -3.5F;
+        MobSpawn ms2 = (MobSpawn)roundtrip(ms);
+        check(ms2.entityId == 9 && ms2.mobType == MobSpawn.ZOMBIE, "mob spawn ids");
+        check(ms2.x == 1.5F && ms2.y == 62.5F && ms2.z == -3.5F, "mob spawn pos");
+        MobHurt mh = new MobHurt();
+        mh.entityId = 9;
+        mh.hp = 17;
+        mh.xd = 0.3F;
+        mh.zd = -0.1F;
+        MobHurt mh2 = (MobHurt)roundtrip(mh);
+        check(mh2.entityId == 9 && mh2.hp == 17, "mob hurt hp");
+        check(mh2.xd == 0.3F && mh2.zd == -0.1F, "mob hurt knockback");
+        AttackMob am = new AttackMob();
+        am.entityId = 9;
+        check(((AttackMob)roundtrip(am)).entityId == 9, "attack mob id");
+
         FallingSpawn fs = new FallingSpawn();
         fs.entityId = 7;
         fs.blockId = 5;

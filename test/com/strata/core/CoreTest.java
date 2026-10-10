@@ -40,6 +40,7 @@ public class CoreTest {
       Debug.statusLine();
       Debug.dumpRecent();
       check(Config.SLOW_MESH_MS > 0 && Config.SLOW_FRAME_MS > 0 && Config.DBG_STATUS_EVERY > 0, "debug thresholds sane");
+
       System.out.println("debug ok");
 
       Log.setQuiet(false);

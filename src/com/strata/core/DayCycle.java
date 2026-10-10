@@ -4,6 +4,18 @@ public final class DayCycle {
    private DayCycle() {
    }
 
+   public static float amount(long time, long dayLength) {
+      double sun = Math.sin(time * Math.PI * 2.0 / dayLength);
+      double t = (sun + 0.08) / 0.28;
+      if (t < 0.0) {
+         t = 0.0;
+      }
+      if (t > 1.0) {
+         t = 1.0;
+      }
+      return (float)(t * t * (3.0 - 2.0 * t));
+   }
+
    public static int subFor(float dayAmount) {
       float d = dayAmount < 0.0F ? 0.0F : (dayAmount > 1.0F ? 1.0F : dayAmount);
       return Math.round(11.0F * (1.0F - d));

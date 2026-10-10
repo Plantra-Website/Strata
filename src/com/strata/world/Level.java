@@ -353,8 +353,55 @@ public class Level implements BlockView, LightWorld {
       if (id == Blocks.LILYPAD_ID) {
          return true;
       }
-      return Blocks.isSolid(id);
-   }
+       return Blocks.isSolid(id);
+    }
+
+    public boolean sightClear(float x0, float y0, float z0,
+          float x1, float y1, float z1) {
+       double dx = x1 - x0;
+       double dy = y1 - y0;
+       double dz = z1 - z0;
+       double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+       if (len < 1.0E-6) {
+          return true;
+       }
+       int x = MathHelper.floor(x0);
+       int y = MathHelper.floor(y0);
+       int z = MathHelper.floor(z0);
+       int tx = MathHelper.floor(x1);
+       int ty = MathHelper.floor(y1);
+       int tz = MathHelper.floor(z1);
+       int sx = dx > 0.0 ? 1 : -1;
+       int sy = dy > 0.0 ? 1 : -1;
+       int sz = dz > 0.0 ? 1 : -1;
+       double inv = len;
+       double tDeltaX = dx != 0.0 ? Math.abs(inv / dx) : Double.MAX_VALUE;
+       double tDeltaY = dy != 0.0 ? Math.abs(inv / dy) : Double.MAX_VALUE;
+       double tDeltaZ = dz != 0.0 ? Math.abs(inv / dz) : Double.MAX_VALUE;
+       double tMaxX = dx != 0.0 ? ((dx > 0.0 ? x + 1 - x0 : x0 - x)) * Math.abs(inv / dx) : Double.MAX_VALUE;
+       double tMaxY = dy != 0.0 ? ((dy > 0.0 ? y + 1 - y0 : y0 - y)) * Math.abs(inv / dy) : Double.MAX_VALUE;
+       double tMaxZ = dz != 0.0 ? ((dz > 0.0 ? z + 1 - z0 : z0 - z)) * Math.abs(inv / dz) : Double.MAX_VALUE;
+       while (x != tx || y != ty || z != tz) {
+          if (tMaxX < tMaxY && tMaxX < tMaxZ) {
+             x += sx;
+             tMaxX += tDeltaX;
+          } else if (tMaxY < tMaxZ) {
+             y += sy;
+             tMaxY += tDeltaY;
+          } else {
+             z += sz;
+             tMaxZ += tDeltaZ;
+          }
+          if (x == tx && y == ty && z == tz) {
+             return true;
+          }
+          int id = this.getTile(x, y, z);
+          if (id != 0 && !Blocks.isFluid(id) && Blocks.isSolid(id)) {
+             return false;
+          }
+       }
+       return true;
+    }
 
     public int getData(int x, int y, int z) {
        if (y < 0 || y >= this.depth) {
