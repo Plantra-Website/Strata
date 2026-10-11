@@ -66,6 +66,12 @@ working-storage section.
 01 ramp-str pic x(70) value " .'`^"",:;Il!i><~+_-?][}{1)(|\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$".
 01 ramp-max pic 9(9) comp-5 value 69.
 01 bright-f pic 9v9(6) value 0.
+01 win-os-name pic x(64) value spaces.
+01 std-handle-id pic s9(9) comp-5 value -11.
+01 console-handle pic 9(18) comp-5 value 0.
+01 console-mode pic 9(9) comp-5 value 0.
+01 mode-bit pic 9 comp-5 value 0.
+01 codepage-num pic 9(9) comp-5 value 65001.
 01 gamma-tab.
    05 gidx occurs 256 times pic 9(2) comp-5 value 0.
 01 fgf-tab.
@@ -151,6 +157,14 @@ main-section.
         function trim(mode-val) " fps=" fps-val
         " scale=" scale-val " (" dcols "x" drows " cells)"
         " file=" function trim(frame-path)
+    *> Windows legacy console: enable VT escapes + UTF-8 output so the
+    *> viewer works outside Windows Terminal too. kernel32 exists only
+    *> on Windows — anywhere else the OS probe skips the whole block.
+    accept win-os-name from environment "OS"
+    end-accept
+    if function trim(win-os-name) = "Windows_NT"
+        perform enable-windows-console
+    end-if
     display esc-char "[?25l" with no advancing
     display esc-char "[2J" with no advancing
     display esc-char "[H" with no advancing
@@ -665,8 +679,28 @@ render-ascii.
         end-string
         compute line-len = ptr - 1
         display line-buf(1:line-len)
-        end-if
     end-perform.
+enable-windows-console.
+    *> GetStdHandle(-11) -> stdout handle; OR 0x0004
+    *> (ENABLE_VIRTUAL_TERMINAL_PROCESSING) into its mode preserving the
+    *> rest; force UTF-8 output codepage. No ON EXCEPTION needed: the
+    *> caller only performs this on Windows_NT, where kernel32 always
+    *> resolves these three.
+    call "GetStdHandle" using by value std-handle-id
+        returning console-handle
+    end-call
+    call "GetConsoleMode" using by value console-handle console-mode
+    end-call
+    compute mode-bit = function mod(function integer(console-mode / 4),
+        2)
+    if mode-bit = 0
+        compute console-mode = console-mode + 4
+    end-if
+    call "SetConsoleMode" using by value console-handle
+        by value console-mode
+    end-call
+    call "SetConsoleOutputCP" using by value codepage-num
+    end-call.
 render-truecolor.
     perform varying py2 from 0 by 1 until py2 >= drows
         move 1 to ptr
@@ -731,7 +765,7 @@ render-truecolor.
         display line-buf(1:line-len)
     end-perform.
 render-ansi16.
-    *> Fastest mode: half-blocks quantized to the 16 ANSI colors
+    *> Fastest mode: half-blocks quantized to the 256-color palette
     *> (threshold 128/channel, bright bit on average). Only 256 fg/bg
     *> combos exist, so flat scenes collapse to ~3 bytes/cell and the
     *> escapes are short absolute SGR (no empty params, ever).
