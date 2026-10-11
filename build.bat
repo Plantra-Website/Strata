@@ -77,6 +77,17 @@ for /f "tokens=2" %%v in ('"%~1" -version 2^>^&1') do set JV=%%v
 for /f "tokens=1 delims=." %%m in ("!JV!") do set JVMAJOR=%%m
 exit /b 0
 
+:emit_java
+rem %1 = root dir to walk. Appends slash-normalized quoted paths to %LISTFILE%.
+rem javac @files treat backslash as an escape, so Windows paths must use
+rem forward slashes inside the file (fine everywhere for javac).
+for /R %1 %%f in (*.java) do @(
+  set "p=%%f"
+  set "p=!p:\=/!"
+  echo "!p!" >> "%LISTFILE%"
+)
+exit /b 0
+
 :compile_one
 rem %1 = target tree (out or out-test). Wipes, copies res, compiles.
 if exist "%~1" rmdir /S /Q "%~1"
@@ -97,10 +108,14 @@ if exist res\textures (
   del "%TEMP%\strata-index.txt"
 )
 if exist test (
-  (for /R src %%f in (*.java) do @echo "%%f") > "%TEMP%\strata-src.txt"
-  (for /R test %%f in (*.java) do @echo "%%f") >> "%TEMP%\strata-src.txt"
+  del "%TEMP%\strata-src.txt" 2>nul
+  set LISTFILE=%TEMP%\strata-src.txt
+  call :emit_java src
+  call :emit_java test
 ) else (
-  (for /R src %%f in (*.java) do @echo "%%f") > "%TEMP%\strata-src.txt"
+  del "%TEMP%\strata-src.txt" 2>nul
+  set LISTFILE=%TEMP%\strata-src.txt
+  call :emit_java src
 )
 "%JAVAC_BIN%" -encoding UTF-8 -cp "%LIB%" -d "%~1" @"%TEMP%\strata-src.txt"
 if errorlevel 1 exit /b 1
@@ -184,8 +199,10 @@ if exist stripped rmdir /S /Q stripped
 if errorlevel 1 exit /b 1
 if exist "%TEMP%\stripcheck" rmdir /S /Q "%TEMP%\stripcheck"
 mkdir "%TEMP%\stripcheck"
-(for /R stripped\src %%f in (*.java) do @echo "%%f") > "%TEMP%\strip-files.txt"
-(for /R stripped\test %%f in (*.java) do @echo "%%f") >> "%TEMP%\strip-files.txt"
+del "%TEMP%\strip-files.txt" 2>nul
+set LISTFILE=%TEMP%\strip-files.txt
+call :emit_java stripped\src
+if exist stripped\test call :emit_java stripped\test
 "%JAVAC_BIN%" -encoding UTF-8 -cp "%LIB%" -d "%TEMP%\stripcheck" @"%TEMP%\strip-files.txt"
 if errorlevel 1 exit /b 1
 echo STRIP_OK
