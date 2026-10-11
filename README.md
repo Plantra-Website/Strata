@@ -12,6 +12,14 @@ through torch-lit midnight.
 ./build.sh test   # compile and run the headless suite
 ```
 
+Windows uses the native mirror instead (`build.bat` with the same
+`build`/`run`/`test`/`jar` commands; needs a JDK 17+ via `JAVA_HOME`,
+`PATH`, or a Temurin-style install):
+
+```cmd
+build.bat test
+```
+
 Needs a JDK 17+ (`JAVA_HOME`, on `PATH`, or a standard Temurin-style
 install — the script finds it).
 
