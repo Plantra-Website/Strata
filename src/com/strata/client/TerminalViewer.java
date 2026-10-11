@@ -60,15 +60,24 @@ public class TerminalViewer {
          return dev;
       }
       try {
-         InputStream in = TerminalViewer.class.getResourceAsStream("/terminal/viewer");
+         String resName = null;
+         InputStream in = TerminalViewer.class.getResourceAsStream("/terminal/viewer.exe");
+         if (in != null) {
+            resName = "viewer.exe";
+         } else {
+            in = TerminalViewer.class.getResourceAsStream("/terminal/viewer");
+            if (in != null) {
+               resName = "viewer";
+            }
+         }
          if (in != null) {
             File dir = new File(System.getProperty("java.io.tmpdir"), "strata-viewer");
             dir.mkdirs();
-            File out = new File(dir, "viewer");
+            File out = new File(dir, resName);
             Files.copy(in, out.toPath(), StandardCopyOption.REPLACE_EXISTING);
             in.close();
             out.setExecutable(true);
-            if (out.canExecute()) {
+            if (out.canExecute() || File.separatorChar == '\\') {
                return out;
             }
          }

@@ -186,12 +186,17 @@ case "${1:-build}" in
     VIEWER_BIN=""
     if [ -x "viewer-$PLAT" ]; then
       VIEWER_BIN="viewer-$PLAT"
+    elif [ -x "viewer-$PLAT.exe" ]; then
+      VIEWER_BIN="viewer-$PLAT.exe"
     elif [ "$PLAT" = "mac-arm64" ] && [ -x viewer ]; then
       VIEWER_BIN="viewer"
     fi
     if [ -n "$VIEWER_BIN" ]; then
       mkdir -p dist/work/terminal
-      cp "$VIEWER_BIN" dist/work/terminal/viewer
+      case "$VIEWER_BIN" in
+        *.exe) cp "$VIEWER_BIN" dist/work/terminal/viewer.exe ;;
+        *) cp "$VIEWER_BIN" dist/work/terminal/viewer ;;
+      esac
     else
       echo "note: no $PLAT viewer binary (viewer-$PLAT), jar ships without the terminal viewer" >&2
     fi

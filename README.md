@@ -48,9 +48,10 @@ each jar).
   the same flag and are forwarded: `--mode truecolor|ascii|mono|ansi`,
   `--fps N`, `--scale N`, `--once`
   (e.g. `--terminal 320x240:15 --mode ansi --fps 10 --scale 2`).
-  Needs a viewer binary: `./viewer` next to the game (dev), the
-  `STRATA_VIEWER` env path, or one embedded in the fat jar (mac-arm64
-  only today); without one the game runs viewerless. `STRATA_VIEWER_LIB`
+  Needs a viewer binary: `./viewer*` next to the game (dev aliases),
+  the `STRATA_VIEWER` env path, or one embedded in the fat jar (all
+  flavors carry their native viewer: mac-arm64, mac-x64, linux-x64,
+  windows-x64); without one the game runs viewerless. `STRATA_VIEWER_LIB`
   overrides the viewer library path when `libcob` is not installed.
   While the tap is active the game log moves to `/tmp/strata-game.log`
   (same dir as the frame file) so log lines can't tear the fullscreen
