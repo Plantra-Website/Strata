@@ -11,7 +11,19 @@ import org.lwjgl.opengl.GL11;
 import com.strata.core.Log;
 
 public class FrameTap {
-   public static final String PATH = "/tmp/strata-frame.bin";
+   public static final String PATH = defaultPath();
+
+   private static String defaultPath() {
+      String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+      if (os.contains("win")) {
+         String tmp = System.getProperty("java.io.tmpdir", ".");
+         if (!tmp.endsWith("\\") && !tmp.endsWith("/")) {
+            tmp += java.io.File.separator;
+         }
+         return tmp + "strata-frame.bin";
+      }
+      return "/tmp/strata-frame.bin";
+   }
    private static final int DEFAULT_FPS = 15;
 
    private final int tw;

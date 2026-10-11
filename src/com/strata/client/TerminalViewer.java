@@ -87,6 +87,17 @@ public class TerminalViewer {
       return null;
    }
 
+   static java.util.List<String> buildCommand(File bin, FrameTap tap, java.util.List<String> viewerArgs) {
+      java.util.List<String> cmd = new java.util.ArrayList<>();
+      cmd.add(bin.getAbsolutePath());
+      cmd.add(String.valueOf(tap.tapWidth()));
+      cmd.add(String.valueOf(tap.tapHeight()));
+      cmd.addAll(viewerArgs);
+      cmd.add("--file");
+      cmd.add(FrameTap.PATH);
+      return cmd;
+   }
+
    public static Process launch(FrameTap tap, List<String> viewerArgs) {
       if (tap == null) {
          return null;
@@ -102,11 +113,7 @@ public class TerminalViewer {
          Log.info("term", "no viewer binary (./viewer or jar resource), game runs without terminal mirror");
          return null;
       }
-      List<String> cmd = new ArrayList<>();
-      cmd.add(bin.getAbsolutePath());
-      cmd.add(String.valueOf(tap.tapWidth()));
-      cmd.add(String.valueOf(tap.tapHeight()));
-      cmd.addAll(viewerArgs);
+      List<String> cmd = buildCommand(bin, tap, viewerArgs);
       try {
          ProcessBuilder pb = new ProcessBuilder(cmd);
          pb.inheritIO();

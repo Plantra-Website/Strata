@@ -71,6 +71,29 @@ public class Boot {
       return "liblwjgl64.so";
    }
 
+   static String platformDir(String os, String arch) {
+      String o = os.toLowerCase(java.util.Locale.ROOT);
+      String a = arch.toLowerCase(java.util.Locale.ROOT);
+      boolean arm = a.contains("aarch64") || a.contains("arm64") || a.equals("arm");
+      if (o.contains("mac") || o.contains("darwin")) {
+         return arm ? "mac-arm64" : "mac-x64";
+      }
+      if (o.contains("win")) {
+         return "windows-x64";
+      }
+      return "linux-x64";
+   }
+
+   static String[] nativeLibs(String platDir) {
+      if (platDir.startsWith("windows")) {
+         return new String[]{"lwjgl64.dll"};
+      }
+      if (platDir.startsWith("linux")) {
+         return new String[]{"liblwjgl64.so"};
+      }
+      return new String[]{"liblwjgl.dylib"};
+   }
+
    private static void preloadNatives() {
       try {
          String lib = nativeLibName(System.getProperty("os.name", ""), System.getProperty("os.arch", ""));
@@ -90,11 +113,12 @@ public class Boot {
          Log.warn("natives", "bundled extract failed, trying dirs: " + e.getMessage());
       }
       String[] candidates = {
+         System.getProperty("user.dir") + "/natives/" + platformDir(System.getProperty("os.name", ""), System.getProperty("os.arch", "")),
          System.getProperty("user.dir") + "/lib/native",
          System.getProperty("user.dir") + "/../lib/native",
          System.getProperty("user.home") + "/Library/Java/Extensions"
       };
-      String[] libs = {"liblwjgl.dylib"};
+      String[] libs = nativeLibs(platformDir(System.getProperty("os.name", ""), System.getProperty("os.arch", "")));
       java.util.HashSet<String> loaded = new java.util.HashSet<>();
       boolean anyLoaded = false;
       for (String dir : candidates) {

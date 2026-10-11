@@ -63,7 +63,9 @@ each jar).
   overrides the viewer library path when `libcob` is not installed.
   While the tap is active the game log moves to `/tmp/strata-game.log`
   (same dir as the frame file) so log lines can't tear the fullscreen
-  render; errors additionally stay on stderr.
+  render; errors additionally stay on stderr. On Windows the frame and
+  log live under `%TEMP%` instead, and the launcher hands that path to
+  the viewer via `--file`, so no manual path juggling is needed.
 
 ## Controls
 

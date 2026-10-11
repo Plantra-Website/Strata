@@ -44,6 +44,14 @@ public class TerminalViewerTest {
          check(false, "stop(null) threw");
       }
 
+      java.io.File fakeBin = new java.io.File("viewer-fake-bin");
+      FrameTap tap = new FrameTap(320, 240, 15);
+      java.util.List<String> cmd = TerminalViewer.buildCommand(fakeBin,
+         tap, Arrays.asList("--mode", "ansi", "--scale", "2"));
+      check(cmd.equals(Arrays.asList(fakeBin.getAbsolutePath(),
+         "320", "240", "--mode", "ansi", "--scale", "2",
+         "--file", FrameTap.PATH)), "argv carries size, flags, tap path");
+
       if (failures > 0) { System.out.println(failures + " FAILURES"); System.exit(1); }
       System.out.println("terminalviewer ok");
    }
