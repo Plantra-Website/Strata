@@ -14,7 +14,9 @@ through torch-lit midnight.
 
 Windows uses the native mirror instead (`build.bat` with the same
 `build`/`run`/`test`/`jar` commands; needs a JDK 17+ via `JAVA_HOME`,
-`PATH`, or a Temurin-style install):
+`PATH`, or a Temurin-style install — with none found it downloads
+Temurin 17 once to `%LOCALAPPDATA%\Strata\jdk17`, so a fresh clone
+builds with zero setup):
 
 ```cmd
 build.bat test

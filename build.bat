@@ -55,6 +55,53 @@ if not defined JAVAC_BIN (
 )
 :jdk_done
 if not defined JAVAC_BIN (
+  rem Last resort: fetch a Temurin 17 JDK once into the local app-data
+  rem cache (curl.exe + tar ship inbox on Windows 10+). Nothing to install
+  rem by hand; delete %LOCALAPPDATA%\Strata\jdk17 to force a re-fetch.
+  echo no JDK 17+ found, fetching Temurin 17 (one-time download)... 1>&2
+  set JDKCACHE=%LOCALAPPDATA%\Strata\jdk17
+  if not exist "%JDKCACHE%\bin\javac.exe" (
+    for /D %%j in ("%JDKCACHE%\jdk-*") do (
+      if exist "%%~j\bin\javac.exe" (
+        call :check_javac "%%~j\bin\javac.exe"
+        if !JVMAJOR! GEQ 17 (
+          set "JAVAC_BIN=%%~j\bin\javac.exe"
+          set "JAVA_BIN=%%~j\bin\java.exe"
+          set "JAR_BIN=%%~j\bin\jar.exe"
+          goto jdk_done
+        )
+      )
+    )
+    if not exist "%JDKCACHE%" mkdir "%JDKCACHE%" 2>nul
+    curl.exe -L --fail --retry 2 --connect-timeout 20 -o "%TEMP%\strata-jdk17.zip" "https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse" 1>&2
+    if errorlevel 1 (
+      del "%TEMP%\strata-jdk17.zip" 2>nul
+      echo download failed (offline?) - install a JDK 17+ by hand: https://adoptium.net 1>&2
+      exit /b 1
+    )
+    tar -xf "%TEMP%\strata-jdk17.zip" -C "%JDKCACHE%" 1>&2
+    if errorlevel 1 (
+      echo JDK extract failed - delete "%JDKCACHE%" and retry 1>&2
+      exit /b 1
+    )
+    del "%TEMP%\strata-jdk17.zip" 2>nul
+    for /D %%j in ("%JDKCACHE%\jdk-*") do (
+      if exist "%%~j\bin\javac.exe" (
+        set "JAVAC_BIN=%%~j\bin\javac.exe"
+        set "JAVA_BIN=%%~j\bin\java.exe"
+        set "JAR_BIN=%%~j\bin\jar.exe"
+        goto jdk_done
+      )
+    )
+    echo fetch succeeded but no javac found under "%JDKCACHE%" 1>&2
+    exit /b 1
+  ) else (
+    set "JAVAC_BIN=%JDKCACHE%\bin\javac.exe"
+    set "JAVA_BIN=%JDKCACHE%\bin\java.exe"
+    set "JAR_BIN=%JDKCACHE%\bin\jar.exe"
+  )
+)
+if not defined JAVAC_BIN (
   echo need a JDK 17+: set JAVA_HOME or put javac 17+ on PATH 1>&2
   exit /b 1
 )
