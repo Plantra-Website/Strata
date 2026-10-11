@@ -41,9 +41,20 @@ each jar).
   world, then play it (needs an unused `--world` dir).
 - `--pack NAME` — texture-pack zip file name under `pack/` (missing file
   reverts to built-ins).
-- `--terminal [WxH[:FPS]]` — mirror each frame to `/tmp/strata-frame.bin`
-  (raw RGB) for the external terminal viewer (default `160x120@15`;
-  the game loop caps itself to FPS while the tap is active).
+- `--terminal [WxH[:FPS]] [viewer flags]` — mirror each frame to
+  `/tmp/strata-frame.bin` (raw RGB) and auto-launch the COBOL terminal
+  viewer in the same terminal (default tap `160x120@15`; the game loop
+  caps itself to FPS while the tap is active). Viewer sub-flags ride on
+  the same flag and are forwarded: `--mode truecolor|ascii|mono|ansi`,
+  `--fps N`, `--scale N`, `--once`
+  (e.g. `--terminal 320x240:15 --mode ansi --fps 10 --scale 2`).
+  Needs a viewer binary: `./viewer` next to the game (dev), the
+  `STRATA_VIEWER` env path, or one embedded in the fat jar (mac-arm64
+  only today); without one the game runs viewerless. `STRATA_VIEWER_LIB`
+  overrides the viewer library path when `libcob` is not installed.
+  While the tap is active the game log moves to `/tmp/strata-game.log`
+  (same dir as the frame file) so log lines can't tear the fullscreen
+  render; errors additionally stay on stderr.
 
 ## Controls
 

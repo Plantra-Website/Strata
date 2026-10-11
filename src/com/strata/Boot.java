@@ -1,12 +1,16 @@
 package com.strata;
 
 import com.strata.client.GameClient;
+import com.strata.client.TerminalViewer;
 import com.strata.core.Log;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Boot {
    public static void main(String[] args) {
       preloadNatives();
       GameClient client = new GameClient();
+      List<String> viewerArgs = new ArrayList<>();
       for (int i = 0; i < args.length; i++) {
          if ("--seed".equals(args[i]) && i + 1 < args.length) {
             try {
@@ -26,10 +30,24 @@ public class Boot {
                 spec = args[++i];
              }
              client.setTerminalTap(spec);
+             i = TerminalViewer.slurp(args, i + 1, viewerArgs) - 1;
           }
       }
        client.applyImportDefaults();
-       client.run();
+       Process viewerProc = null;
+       if (client.terminalTap() != null) {
+          java.io.File logFile = new java.io.File(
+             new java.io.File(com.strata.client.FrameTap.PATH).getParent(), "strata-game.log");
+          System.out.println("terminal tap active: game log -> " + logFile + ", viewer owns this screen");
+          Log.setFile(logFile);
+          viewerProc = TerminalViewer.launch(client.terminalTap(), viewerArgs);
+       }
+       try {
+          client.run();
+       } finally {
+          TerminalViewer.stop(viewerProc);
+          Log.closeFile();
+       }
     }
 
     private static String cleanArg(String a) {

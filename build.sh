@@ -36,7 +36,7 @@ pick_jdk() {
     return
   fi
   for want in 'javac 17' 'javac (1[89]|[2-9][0-9])'; do
-    for base in "$HOME/Library/Java/JavaVirtualMachines" /Library/Java/JavaVirtualMachines /usr/lib/jvm "/Applications/IntelliJ IDEA.app/Contents/plugins/javavirtualmachines"; do
+      for base in "$HOME/Library/Java/JavaVirtualMachines" /Library/Java/JavaVirtualMachines /usr/lib/jvm "/Applications/IntelliJ IDEA.app/Contents/plugins/javavirtualmachines" "/Applications/IntelliJ IDEA.app/Contents/plugins/extensions/JavaVirtualMachines"; do
       for d in "$base"/*/ "$base"; do
         for j in "$d/Contents/Home" "$d"; do
           if [ -x "$j/bin/javac" ] && "$j/bin/javac" -version 2>&1 | grep -qE "$want"; then
@@ -178,6 +178,23 @@ case "${1:-build}" in
     done
     mkdir -p dist/work/native
     cp "natives/$PLAT/"* dist/work/native/
+    # Terminal viewer rides inside the jar under terminal/ and self-extracts
+    # at boot (see TerminalViewer.resolve). Per-platform COBOL binaries are
+    # picked by jar flavor (viewer-mac-x64 is cross-built; see the bundle
+    # build-viewer-x64.sh). Missing binary warns, never fails — the game
+    # runs viewerless there.
+    VIEWER_BIN=""
+    if [ -x "viewer-$PLAT" ]; then
+      VIEWER_BIN="viewer-$PLAT"
+    elif [ "$PLAT" = "mac-arm64" ] && [ -x viewer ]; then
+      VIEWER_BIN="viewer"
+    fi
+    if [ -n "$VIEWER_BIN" ]; then
+      mkdir -p dist/work/terminal
+      cp "$VIEWER_BIN" dist/work/terminal/viewer
+    else
+      echo "note: no $PLAT viewer binary (viewer-$PLAT), jar ships without the terminal viewer" >&2
+    fi
     find dist/work -name '.DS_Store' -delete
     rm -rf dist/work/__MACOSX
     mkdir -p dist/work/META-INF

@@ -153,6 +153,10 @@ public class GameClient implements Runnable {
       this.frameTap = FrameTap.fromSpec(spec);
    }
 
+   public FrameTap terminalTap() {
+      return this.frameTap;
+   }
+
    public void applyImportDefaults() {
       if (this.importImage != null && this.worldDir.getPath().equals(DEFAULT_WORLD)) {
          this.worldDir = new java.io.File("import");

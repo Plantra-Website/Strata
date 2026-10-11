@@ -7,6 +7,7 @@ public final class Log {
 
    private static int level = INFO;
    private static boolean quiet = false;
+   private static java.io.PrintWriter fileOut = null;
 
    private Log() {
    }
@@ -19,30 +20,73 @@ public final class Log {
       quiet = q;
    }
 
-   public static void info(String tag, String msg) {
+   public static synchronized void setFile(java.io.File f) {
+      closeFile();
+      if (f == null) {
+         return;
+      }
+      try {
+         fileOut = new java.io.PrintWriter(new java.io.FileWriter(f, false), true);
+      } catch (java.io.IOException e) {
+         fileOut = null;
+         error("log", "cannot open log file " + f + ", staying on stdout");
+      }
+   }
+
+   public static synchronized void closeFile() {
+      if (fileOut != null) {
+         fileOut.close();
+         fileOut = null;
+      }
+   }
+
+   public static synchronized void info(String tag, String msg) {
       if (!quiet && level >= INFO) {
-         System.out.println("[" + tag + "] " + msg);
+         String line = "[" + tag + "] " + msg;
+         if (fileOut != null) {
+            fileOut.println(line);
+         } else {
+            System.out.println(line);
+         }
       }
    }
 
-   public static void warn(String tag, String msg) {
+   public static synchronized void warn(String tag, String msg) {
       if (!quiet && level >= WARN) {
-         System.out.println("[" + tag + "] " + msg);
+         String line = "[" + tag + "] " + msg;
+         if (fileOut != null) {
+            fileOut.println(line);
+         } else {
+            System.out.println(line);
+         }
       }
    }
 
-   public static void error(String tag, String msg) {
-      System.err.println("[" + tag + "] ERROR " + msg);
+   public static synchronized void error(String tag, String msg) {
+      String line = "[" + tag + "] ERROR " + msg;
+      System.err.println(line);
+      if (fileOut != null) {
+         fileOut.println(line);
+      }
    }
 
-   public static void error(String tag, String msg, Throwable e) {
-      System.err.println("[" + tag + "] ERROR " + msg + ": " + e);
+   public static synchronized void error(String tag, String msg, Throwable e) {
+      String line = "[" + tag + "] ERROR " + msg + ": " + e;
+      System.err.println(line);
       e.printStackTrace(System.err);
+      if (fileOut != null) {
+         fileOut.println(line);
+         e.printStackTrace(fileOut);
+      }
    }
 
-   public static void raw(String msg) {
+   public static synchronized void raw(String msg) {
       if (!quiet) {
-         System.out.println(msg);
+         if (fileOut != null) {
+            fileOut.println(msg);
+         } else {
+            System.out.println(msg);
+         }
       }
    }
 }
