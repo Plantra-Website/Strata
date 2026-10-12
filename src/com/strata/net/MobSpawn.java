@@ -31,10 +31,19 @@ public class MobSpawn extends Packet {
    @Override
    public void read(DataInput in) throws IOException {
       this.entityId = in.readInt();
+      if (this.entityId < 0 || this.entityId > Packet.MAX_ENTITY_ID) {
+         throw new IOException("entity id out of range: " + this.entityId);
+      }
       this.mobType = in.readInt();
+      if (this.mobType < 0 || this.mobType > 0) {
+         throw new IOException("mob type out of range: " + this.mobType);
+      }
       this.x = in.readFloat();
       this.y = in.readFloat();
       this.z = in.readFloat();
+      if (!Float.isFinite(this.x) || !Float.isFinite(this.y) || !Float.isFinite(this.z)) {
+         throw new IOException("non-finite mob position");
+      }
    }
 }
 

@@ -21,6 +21,9 @@ public class AttackMob extends Packet {
    @Override
    public void read(DataInput in) throws IOException {
       this.entityId = in.readInt();
+      if (this.entityId < 0 || this.entityId > Packet.MAX_ENTITY_ID) {
+         throw new IOException("entity id out of range: " + this.entityId);
+      }
    }
 }
 

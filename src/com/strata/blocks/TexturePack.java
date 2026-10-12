@@ -32,7 +32,10 @@ public final class TexturePack {
                }
                String tile = name.substring("textures/".length());
                 try {
-                   BufferedImage img = ImageIO.read(zf.getInputStream(e));
+                   BufferedImage img;
+                   try (java.io.InputStream zs = zf.getInputStream(e)) {
+                      img = ImageIO.read(zs);
+                   }
                    if (img == null) {
                       Log.warn("pack", "unreadable entry " + name + ", skipping");
                    } else {

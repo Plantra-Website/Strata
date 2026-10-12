@@ -1,6 +1,7 @@
 package com.strata.world.mesh;
 
 import com.strata.blocks.AtlasStitcher;
+import com.strata.core.GlResources;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -20,7 +21,10 @@ public class Textures {
          return cached;
       }
       try {
-         BufferedImage img = ImageIO.read(Textures.class.getResourceAsStream(resourceName));
+         BufferedImage img;
+         try (java.io.InputStream in = Textures.class.getResourceAsStream(resourceName)) {
+            img = ImageIO.read(in);
+         }
          if (img == null) {
             throw new RuntimeException("unreadable gui texture " + resourceName);
          }
@@ -56,6 +60,7 @@ public class Textures {
       IntBuffer ib = BufferUtils.createIntBuffer(1);
       GL11.glGenTextures(ib);
       int id = ib.get(0);
+      GlResources.track(id, "texture"); 
       bind(id);
       GL11.glTexParameteri(3553, 10241, mode);
       GL11.glTexParameteri(3553, 10240, mode);

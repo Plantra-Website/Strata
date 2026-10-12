@@ -34,18 +34,21 @@ public class Boot {
           }
       }
        client.applyImportDefaults();
+       client.setTerminalScale(TerminalViewer.viewScale(viewerArgs));
        Process viewerProc = null;
+       Process inputProc = null;
        if (client.terminalTap() != null) {
-          java.io.File logFile = new java.io.File(
-             new java.io.File(com.strata.client.FrameTap.PATH).getParent(), "strata-game.log");
+          java.io.File logFile = com.strata.client.TermTmp.LOG;
           System.out.println("terminal tap active: game log -> " + logFile + ", viewer owns this screen");
           Log.setFile(logFile);
           viewerProc = TerminalViewer.launch(client.terminalTap(), viewerArgs);
+          inputProc = TerminalViewer.launchInput();
        }
        try {
           client.run();
        } finally {
           TerminalViewer.stop(viewerProc);
+          TerminalViewer.stop(inputProc);
           Log.closeFile();
        }
     }
@@ -99,11 +102,11 @@ public class Boot {
          String lib = nativeLibName(System.getProperty("os.name", ""), System.getProperty("os.arch", ""));
          java.io.InputStream in = Boot.class.getResourceAsStream("/native/" + lib);
          if (in != null) {
-            java.io.File tmp = new java.io.File(System.getProperty("java.io.tmpdir"), "strata-natives");
-            tmp.mkdirs();
+            java.io.File tmp = com.strata.client.TermTmp.exeDir("natives");
             java.io.File out = new java.io.File(tmp, lib);
-            java.nio.file.Files.copy(in, out.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            in.close();
+            try (java.io.InputStream src = in) {
+               java.nio.file.Files.copy(src, out.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
             System.load(out.getAbsolutePath());
             System.setProperty("org.lwjgl.librarypath", tmp.getAbsolutePath());
             Log.info("natives", "loaded bundled " + out.getAbsolutePath());

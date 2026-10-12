@@ -1,8 +1,10 @@
 # strata-viewer — COBOL terminal viewer for Strata
 
-Renders the game's `--terminal` tap (`/tmp/strata-frame.bin`: 8-char frame
+Renders the game's `--terminal` tap (8-char frame
 counter + `W*H*3` raw RGB bytes, top-down, atomic rename, ~15fps default)
-as terminal cells. Written in GnuCOBOL (`viewer.cbl`, free format).
+as terminal cells. The game hands the tap path via `--file` (it lives in
+the game's private per-launch temp dir); standalone default is
+`/tmp/strata-frame.bin`. Written in GnuCOBOL (`viewer.cbl`, free format).
 
 ## Build
 
@@ -68,7 +70,8 @@ viewer [W H] [--mode truecolor|ascii|mono|ansi] [--fps 1..60]
   `320x240` tap at `--scale 2` shows `160x120` cells. See ratios below.
 - `--once` — render one frame, quit. Default loops until the frame file
   is deleted (game exit), printing `FRAME-GONE`.
-- `--file PATH` — frame file (default `/tmp/strata-frame.bin`).
+- `--file PATH` — frame file (default `/tmp/strata-frame.bin`, used when
+  running standalone; the game always passes its own per-launch path).
   Useful for frozen-frame testing.
 
 Game + viewer pairs:
@@ -122,10 +125,46 @@ per-statement floor). In `--once` timings, ~15ms is one-shot startup.
 
 ## Frame format (for other viewers)
 
-`/tmp/strata-frame.bin` = `%08d` ASCII counter + `W*H*3` bytes RGB,
+frame file (game: private per-launch temp dir passed via `--file`;
+standalone default `/tmp/strata-frame.bin`) = `%08d` ASCII counter + `W*H*3` bytes RGB,
 top-down rows, rewritten atomically (~15fps default, configurable via
 game `--terminal WxH:FPS`, 1..60). Deleted on game exit. Counter lets a
 viewer skip unchanged frames.
+
+## Input bridge (`terminput`, Pascal)
+
+`terminput <inputfile> <framefile>` owns stdin (raw + SGR mouse tracking
+on Unix; console input mode on Windows) and publishes polled snapshots:
+
+```text
+SEQ 123
+KEYS W SPACE UP
+MOUSE 45 12 1
+WHEEL 7
+```
+
+- `SEQ` bumps on every state change (game skips same-seq snapshots).
+- `KEYS` are LWJGL names (`Keyboard.getKeyIndex` resolves them).
+- `MOUSE` is cell coords + button bitmask (1=left 2=right 4=middle).
+  The game maps cells onto window pixels itself (it knows the tap size,
+  live window size, and forwarded `--scale`), so resizes just work;
+  clicks outside the frame harmlessly miss every slot.
+- `WHEEL` is a monotonic accumulator (game diffs it; resyncs on reset).
+- Snapshots rewrite atomically on change + 2 Hz heartbeat; the game
+  ignores snapshots older than 2s, so a dead bridge degrades to window
+  input instead of wedging keys.
+- Unix keys have no release events: a press holds 250 ms past its last
+  repeat byte (terminals autorepeat). Ctrl-C exits cleanly (console
+  restored, keys-up written); so does the game deleting `<framefile>`.
+- Waits up to 60 s for the first frame (slow boots), then follows the
+  frame file's lifetime. Lifecycle + write failures trace to
+  `terminput.log` beside the input file — first place to look when
+  input seems dead (also check the game actually launched the bridge:
+  `input bridge pid ...` in the game log).
+- Build (macOS, bundle FPC): `fpc -o terminput terminput.pas`.
+  Windows: stock FPC install, `fpc terminput.pas` (WinAPI branch is
+  review-only there so far — report issues).
+- `--selftest` runs the parser vectors headlessly (exit 0 = green).
 
 ## Troubleshooting
 

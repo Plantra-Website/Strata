@@ -3,9 +3,13 @@ set -e
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 TMPDIR="${TMPDIR:-/tmp}"
-PYTHON="/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9"
-if [ ! -x "$PYTHON" ]; then
-  echo "need $PYTHON (Xcode command line tools)" >&2
+PYTHON=""
+if [ -x "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9" ]; then
+  PYTHON="/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9"
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON="python3"
+else
+  echo "need python3 (Xcode command line tools or PATH python3)" >&2
   exit 1
 fi
 
@@ -42,7 +46,7 @@ if [ -n "$HAD_GIT" ]; then
 fi
 cp -r stripped/src stripped/test res lib natives build.sh build.bat options.txt publish/
 mkdir -p publish/src/com/strata/terminal
-cp src/com/strata/terminal/viewer.cbl src/com/strata/terminal/winconsole.c src/com/strata/terminal/README.md \
+cp src/com/strata/terminal/viewer.cbl src/com/strata/terminal/winconsole.c src/com/strata/terminal/terminput.pas src/com/strata/terminal/README.md \
   publish/src/com/strata/terminal/
 cp pack/ATTRIBUTION-Pixel-Perfection-Fidelity.txt publish/ATTRIBUTION.md
 rm -rf publish/tools publish/TODO.md
@@ -81,8 +85,8 @@ printf '*.cbl text diff linguist-language=COBOL\n' > publish/.gitattributes
 cd publish
 if [ ! -d .git ]; then
   git init -q
-  git config user.name "john.patrick" 2>/dev/null || true
-  git config user.email >/dev/null 2>&1 || git config user.email "you@example.com"
+  git config user.name >/dev/null 2>&1 || git config user.name "Strata" 2>/dev/null || true
+  git config user.email >/dev/null 2>&1 || git config user.email "you@example.com" 2>/dev/null || true
   git add -A
   git commit -qm "$MSG"
   echo "publish repo initialized + committed"

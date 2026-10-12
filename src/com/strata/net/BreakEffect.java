@@ -26,10 +26,13 @@ public class BreakEffect extends Packet {
 
    @Override
    public void read(DataInput in) throws IOException {
-      this.x = in.readInt();
-      this.y = in.readInt();
-      this.z = in.readInt();
+      this.x = Packet.readCoord(in);
+      this.y = Packet.readCoord(in);
+      this.z = Packet.readCoord(in);
       this.texIndex = in.readByte() & 0xFF;
+      if (this.texIndex < 0 || this.texIndex > 255) {
+         throw new IOException("texIndex out of range: " + this.texIndex);
+      }
    }
 }
 

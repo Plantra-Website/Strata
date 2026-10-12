@@ -46,6 +46,25 @@ public class TerminalViewer {
       return i;
    }
 
+   public static int viewScale(java.util.List<String> viewerArgs) {
+      int scale = 1;
+      for (int i = 0; i < viewerArgs.size(); i++) {
+         if ("--scale".equals(viewerArgs.get(i)) && i + 1 < viewerArgs.size()) {
+            try {
+               int v = Integer.parseInt(viewerArgs.get(i + 1).trim());
+               if (v >= 1 && v <= 8) {
+                  scale = v;
+               } else {
+                  Log.warn("term", "ignoring out-of-range --scale " + viewerArgs.get(i + 1));
+               }
+            } catch (NumberFormatException e) {
+               Log.warn("term", "ignoring bad --scale " + viewerArgs.get(i + 1));
+            }
+         }
+      }
+      return scale;
+   }
+
    static File resolve() {
       String env = System.getenv("STRATA_VIEWER");
       if (env != null && !env.isEmpty()) {
@@ -71,11 +90,11 @@ public class TerminalViewer {
             }
          }
          if (in != null) {
-            File dir = new File(System.getProperty("java.io.tmpdir"), "strata-viewer");
-            dir.mkdirs();
+            File dir = TermTmp.exeDir("bin");
             File out = new File(dir, resName);
-            Files.copy(in, out.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            in.close();
+            try (InputStream src = in) {
+               Files.copy(src, out.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
             out.setExecutable(true);
             if (out.canExecute() || File.separatorChar == '\\') {
                return out;
@@ -147,6 +166,66 @@ public class TerminalViewer {
             p.destroyForcibly();
          }
       } catch (Throwable t) {
+      }
+   }
+
+   static File resolveBridge() {
+      String env = System.getenv("STRATA_TERMINPUT");
+      if (env != null && !env.isEmpty()) {
+         File f = new File(env);
+         if (f.isFile() && f.canExecute()) {
+            return f;
+         }
+         Log.warn("term", "STRATA_TERMINPUT=" + env + " not executable, trying defaults");
+      }
+      File dev = new File(System.getProperty("user.dir", "."), "terminput");
+      if (dev.isFile() && dev.canExecute()) {
+         return dev;
+      }
+      try {
+         InputStream in = TerminalViewer.class.getResourceAsStream("/terminal/terminput");
+         if (in != null) {
+            File dir = TermTmp.exeDir("bin");
+            File out = new File(dir, "terminput");
+            try (InputStream src = in) {
+               Files.copy(src, out.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+            out.setExecutable(true);
+            if (out.canExecute()) {
+               return out;
+            }
+         }
+      } catch (Exception e) {
+         Log.warn("term", "input bridge extract failed: " + e.getMessage());
+      }
+      return null;
+   }
+
+   public static Process launchInput() {
+      File bin;
+      try {
+         bin = resolveBridge();
+      } catch (Throwable t) {
+         Log.warn("term", "input bridge resolve failed: " + t.getMessage());
+         return null;
+      }
+      if (bin == null) {
+         Log.info("term", "no input bridge binary, playing via window input");
+         return null;
+      }
+      List<String> cmd = new ArrayList<>();
+      cmd.add(bin.getAbsolutePath());
+      cmd.add(TerminalInput.PATH);
+      cmd.add(FrameTap.PATH);
+      try {
+         ProcessBuilder pb = new ProcessBuilder(cmd);
+         pb.inheritIO();
+         Process p = pb.start();
+         Log.info("term", "input bridge pid " + p.pid() + ": " + String.join(" ", cmd));
+         return p;
+      } catch (Throwable t) {
+         Log.warn("term", "input bridge launch failed (" + t.getMessage() + "), playing via window input");
+         return null;
       }
    }
 }

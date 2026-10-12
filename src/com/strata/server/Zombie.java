@@ -125,8 +125,7 @@ public class Zombie extends LivingEntity {
       }
       float ledgeUp = playerBox == null ? -1.0F : playerBox.y0 - this.bb.y0;
       boolean ledgeAbove = ledgeUp > 0.5F && ledgeUp < 1.5F && dist < 1.5F;
-      if (this.onGround && ((wantsMove && (this.xd == 0.0F || this.zd == 0.0F))
-            || ledgeAbove)) {
+      if (this.onGround && ((wantsMove && this.blocked) || ledgeAbove)) {
          this.yd = 0.12F;
       }
       if (this.onGround) {

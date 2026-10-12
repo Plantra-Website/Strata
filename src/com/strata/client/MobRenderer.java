@@ -31,13 +31,14 @@ public class MobRenderer {
       this.mobs.put(entityId, new Zombie(entityId, x, y, z));
    }
 
-   public void hurt(int entityId, int hp, float xd, float zd) {
+   public void hurt(int entityId, int hp, float xd, float yd, float zd) {
       Zombie z = this.mobs.get(entityId);
       if (z == null) {
          return;
       }
       z.hp = hp;
       z.xd = xd;
+      z.yd = yd;
       z.zd = zd;
    }
 

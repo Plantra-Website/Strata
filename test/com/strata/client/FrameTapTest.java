@@ -34,12 +34,26 @@ public class FrameTapTest {
       check(badFps.tapWidth() == 64 && badFps.tapHeight() == 48, "bad fps keeps size");
       check(badFps.targetFps() == 15, "bad fps falls back to 15");
 
-      check(FrameTap.PATH.endsWith("strata-frame.bin"), "tap path names the frame file");
+      java.io.File frame = new java.io.File(FrameTap.PATH);
+      check(frame.getName().equals("frame.bin"), "tap path names the frame file");
+      check(frame.isAbsolute(), "tap path absolute");
+      check(frame.getParentFile().getName().startsWith("strata-"), "tap rides the private launch dir");
+      check(frame.getParentFile().isDirectory(), "private launch dir exists");
+      check(TermTmp.INPUT.getAbsolutePath().equals(TerminalInput.PATH), "input shares the private dir");
+      check(new java.io.File(frame.getParentFile(), "game.log").getAbsolutePath()
+         .equals(TermTmp.LOG.getAbsolutePath()), "log shares the private dir");
       String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
-      if (os.contains("win")) {
-         check(new java.io.File(FrameTap.PATH).isAbsolute(), "windows tap path absolute");
-      } else {
-         check(FrameTap.PATH.equals("/tmp/strata-frame.bin"), "unix tap path stays /tmp");
+      if (!os.contains("win") && java.nio.file.FileSystems.getDefault()
+            .supportedFileAttributeViews().contains("posix")) {
+         try {
+            check(java.nio.file.Files.getPosixFilePermissions(frame.getParentFile().toPath())
+               .equals(java.util.EnumSet.of(java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                  java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
+                  java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE)),
+               "private launch dir is 0700");
+         } catch (java.io.IOException e) {
+            check(false, "posix perm read threw: " + e.getMessage());
+         }
       }
 
       java.io.File tmp = new java.io.File("taptest.bin.tmp");

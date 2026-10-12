@@ -170,6 +170,9 @@ public class SkyLightEngine {
             if (tiles.isBlocker(nx, ny, nz)) {
                continue;
             }
+            if (this.world.isLightBlocker(nx, ny, nz)) {
+               continue;
+            }
             byte[] arr = this.windowColumn(cache, ox, oz, nx, nz);
             if (arr == null) {
                if (this.readCell(nx, ny, nz) >= nl) {
@@ -211,42 +214,40 @@ public class SkyLightEngine {
       try {
          int depth = this.world.depth();
          long k = columnKey(x, z);
-         byte[] arr = this.levels.get(k);
-         if (arr == null) {
-            byte[] fresh = new byte[depth];
-            byte[] prev = this.levels.putIfAbsent(k, fresh);
-            arr = (prev != null) ? prev : fresh;
-         }
+         byte[] fresh = new byte[depth];
          for (int y = depth - 1; y >= 0; y--) {
             if (this.world.isLightBlocker(x, y, z)) {
                break;
             }
-            arr[y] = 15;
+            fresh[y] = 15;
+         }
+         byte[] prev = this.levels.putIfAbsent(k, fresh);
+         if (prev != null) {
+            fresh = prev;
          }
       } finally {
          Profiler.pop();
       }
    }
 
-   private void seedFromSnapshot(int x, int z, BlockerProbe tiles) {
-      long k = columnKey(x, z);
-      if (!this.seeded.add(k)) {
-         return;
-      }
-      int depth = this.world.depth();
-      byte[] arr = this.levels.get(k);
-      if (arr == null) {
-         byte[] fresh = new byte[depth];
-         byte[] prev = this.levels.putIfAbsent(k, fresh);
-         arr = (prev != null) ? prev : fresh;
-      }
-      for (int y = depth - 1; y >= 0; y--) {
-         if (tiles.isBlocker(x, y, z)) {
-            break;
-         }
-         arr[y] = 15;
-      }
-   }
+    private void seedFromSnapshot(int x, int z, BlockerProbe tiles) {
+       long k = columnKey(x, z);
+       if (!this.seeded.add(k)) {
+          return;
+       }
+       int depth = this.world.depth();
+       byte[] fresh = new byte[depth];
+       for (int y = depth - 1; y >= 0; y--) {
+          if (tiles.isBlocker(x, y, z) || this.world.isLightBlocker(x, y, z)) {
+             break;
+          }
+          fresh[y] = 15;
+       }
+       byte[] prev = this.levels.putIfAbsent(k, fresh);
+       if (prev != null) {
+          fresh = prev;
+       }
+    }
 
    private int readCell(int x, int y, int z) {
       if (y < 0 || y >= this.world.depth()) {

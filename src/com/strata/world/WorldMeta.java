@@ -7,6 +7,7 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileOutputStream;
 
 public final class WorldMeta {
    private static final int MAGIC = 0x5244574D; 
@@ -48,44 +49,58 @@ public final class WorldMeta {
 
    public static WorldMeta load(File worldDir) {
       File f = fileFor(worldDir);
-      if (!f.isFile()) {
-         File tmp = new File(worldDir, "world.dat.tmp");
-         if (tmp.isFile()) {
-            Log.warn("world", "world.dat missing, recovering from world.dat.tmp");
-            f = tmp;
-         } else {
+      WorldMeta fromTmp = null;
+      File tmp = new File(worldDir, "world.dat.tmp");
+      if (tmp.isFile()) {
+         try {
+            return read(worldDir, tmp);
+         } catch (Exception e) {
+            Log.warn("world", "world.dat.tmp unreadable, falling back to world.dat: " + e.getMessage());
+         }
+      }
+      if (f.isFile()) {
+         try {
+            return read(worldDir, f);
+         } catch (Exception e) {
+            Log.warn("world", "world.dat corrupt, trying world.dat.tmp: " + e.getMessage());
+            if (tmp.isFile()) {
+               try {
+                  return read(worldDir, tmp);
+               } catch (Exception e2) {
+                  Log.warn("world", "world.dat.tmp also unreadable, defaulting seed: " + e2.getMessage());
+               }
+            }
             return new WorldMeta(TerrainGenerator.DEFAULT_SEED, 0L);
          }
       }
+      return new WorldMeta(TerrainGenerator.DEFAULT_SEED, 0L);
+   }
+
+   private static WorldMeta read(File worldDir, File f) throws Exception {
+      DataInputStream in = new DataInputStream(new FileInputStream(f));
       try {
-         DataInputStream in = new DataInputStream(new FileInputStream(f));
-         try {
-            int magic = in.readInt();
-            int version = in.readInt();
-            if (magic != MAGIC) {
-               Log.warn("world", "ignoring world.dat with bad magic");
-               return new WorldMeta(TerrainGenerator.DEFAULT_SEED, 0L);
-            }
-            long seed = in.readLong();
-            long time = in.readLong();
-            if (version != VERSION) {
-               Log.warn("world", "world.dat is v" + version + ", not v" + VERSION
-                  + " — keeping seed/time, rest defaults");
-               return new WorldMeta(seed, time);
-            }
-            boolean voidWorld = in.readByte() != 0;
-            float[] spawn = null;
-            if (in.readByte() != 0) {
-               spawn = new float[]{in.readFloat(), in.readFloat(), in.readFloat()};
-            }
-            String pack = in.readUTF();
-            return new WorldMeta(seed, time, voidWorld, spawn, pack);
-         } finally {
-            in.close();
+         int magic = in.readInt();
+         int version = in.readInt();
+         if (magic != MAGIC) {
+            Log.warn("world", "ignoring " + f.getName() + " with bad magic");
+            throw new java.io.IOException("bad magic");
          }
-      } catch (Exception e) {
-         Log.warn("world", "could not read world.dat, using defaults: " + e.getMessage());
-         return new WorldMeta(TerrainGenerator.DEFAULT_SEED, 0L);
+         long seed = in.readLong();
+         long time = in.readLong();
+         if (version != VERSION) {
+            Log.warn("world", f.getName() + " is v" + version + ", not v" + VERSION
+               + " — keeping seed/time, rest defaults");
+            return new WorldMeta(seed, time);
+         }
+         boolean voidWorld = in.readByte() != 0;
+         float[] spawn = null;
+         if (in.readByte() != 0) {
+            spawn = new float[]{in.readFloat(), in.readFloat(), in.readFloat()};
+         }
+         String pack = in.readUTF();
+         return new WorldMeta(seed, time, voidWorld, spawn, pack);
+      } finally {
+         in.close();
       }
    }
 
@@ -94,7 +109,8 @@ public final class WorldMeta {
       try {
          worldDir.mkdirs();
          File tmp = new File(worldDir, "world.dat.tmp");
-         DataOutputStream out = new DataOutputStream(new FileOutputStream(tmp));
+         FileOutputStream fos = new FileOutputStream(tmp);
+         DataOutputStream out = new DataOutputStream(fos);
          try {
             out.writeInt(MAGIC);
             out.writeInt(VERSION);
@@ -109,10 +125,15 @@ public final class WorldMeta {
                out.writeFloat(spawnOrNull[2]);
             }
             out.writeUTF(packOrNull == null ? "" : packOrNull);
+            out.flush();
+            fos.getFD().sync(); 
          } finally {
             out.close();
          }
          File dst = fileFor(worldDir);
+         if (tmp.renameTo(dst)) {
+            return;
+         }
          if (dst.exists() && !dst.delete()) {
             Log.warn("world", "could not replace world.dat");
             return;

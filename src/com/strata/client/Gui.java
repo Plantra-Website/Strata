@@ -208,9 +208,13 @@ public class Gui {
    }
 
    public int slotAt(int mx, int my) {
+      return this.slotAt(mx, my, this.width, this.height);
+   }
+
+   public int slotAt(int mx, int my, int width, int height) {
       for (int i = 0; i < Inventory.SLOTS; i++) {
-         int x = this.panelSlotX(this.width, i);
-         int y = this.panelSlotY(this.height, i);
+         int x = this.panelSlotX(width, i);
+         int y = this.panelSlotY(height, i);
          if (mx >= x && mx < x + PITCH && my >= y && my < y + PITCH) {
             return i;
          }

@@ -11,11 +11,38 @@ import javax.imageio.ImageIO;
 
 public final class WorldImporter {
    public static final int MAX = 256;
-   public static final int DARK_ID = Blocks.COAL_ID;
-   public static final int LIGHT_ID = Blocks.SAND_ID;
    public static final int ART_Y = 44;
 
+   public static final int[] RAMP = {
+      Blocks.OBSIDIAN_ID,   
+      Blocks.BEDROCK_ID,    
+      Blocks.COBBLE_ID,     
+      Blocks.MYCELIUM_ID,   
+      Blocks.STONE_ID,      
+      Blocks.BIRCH_LOG_ID,  
+      Blocks.SANDSTONE_ID,  
+      Blocks.SAND_ID,       
+      Blocks.SNOW_BLOCK_ID  
+   };
+   public static final double[] RAMP_LUMA = {
+      29.0, 80.7, 104.4, 111.8, 124.7, 136.1, 165.6, 183.7, 227.7
+   };
+
    private WorldImporter() {
+   }
+
+   public static int tierFor(int r, int g, int b) {
+      double lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      int best = 0;
+      double bestD = Math.abs(lum - RAMP_LUMA[0]);
+      for (int i = 1; i < RAMP_LUMA.length; i++) {
+         double d = Math.abs(lum - RAMP_LUMA[i]);
+         if (d < bestD) {
+            bestD = d;
+            best = i;
+         }
+      }
+      return best;
    }
 
    public static BufferedImage readImage(File f) {
@@ -96,9 +123,10 @@ public final class WorldImporter {
       int cz = (int)Math.floor(player.z);
       int x0 = cx - dw / 2;
       int z0 = cz - dh / 2;
-      int dark = 0;
-      int light = 0;
+      int opaque = 0;
       int clear = 0;
+      int usedTiers = 0;
+      int[] hist = new int[RAMP.length];
       for (int ix = 0; ix < dw; ix++) {
          for (int iz = 0; iz < dh; iz++) {
             int sx = Math.min(w - 1, (int)(ix / s));
@@ -112,13 +140,15 @@ public final class WorldImporter {
             int r = (px >> 16) & 0xFF;
             int g = (px >> 8) & 0xFF;
             int b = px & 0xFF;
-            int id = ((r + g + b) / 3 < 128) ? DARK_ID : LIGHT_ID;
-            if (id == DARK_ID) {
-               dark++;
-            } else {
-               light++;
-            }
-            level.setTileBulk(x0 + ix, ART_Y, z0 + iz, id);
+            int tier = tierFor(r, g, b);
+            hist[tier]++;
+            opaque++;
+            level.setTileBulk(x0 + ix, ART_Y, z0 + iz, RAMP[tier]);
+         }
+      }
+      for (int i = 0; i < hist.length; i++) {
+         if (hist[i] > 0) {
+            usedTiers++;
          }
       }
       int tx = cx;
@@ -138,7 +168,8 @@ public final class WorldImporter {
       player.teleport(spawnX, spawnY, spawnZ);
       player.yRot = 0.0F;
       player.xRot = 30.0F;
-      Log.info("import", "pasted flat " + dw + "x" + dh + " (" + dark + " dark/" + light + " light/" + clear
+      Log.info("import", "pasted flat " + dw + "x" + dh + " gray (" + opaque
+         + " cells over " + usedTiers + "/" + RAMP.length + " tiers, " + clear
          + " clear) at y" + ART_Y + ", tower spawn facing it (or fly with spectator ' for the top-down view)");
    }
 }

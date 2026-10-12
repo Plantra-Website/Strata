@@ -416,6 +416,29 @@ final class FluidSimulator {
             }
          }
       }
+      for (Map.Entry<Long, byte[]> e : this.level.dataColumns.entrySet()) {
+         long key = e.getKey();
+         int x = (int)(key >> 32);
+         int z = (int)(key & 0xFFFFFFFFL);
+         byte[] dataCol = e.getValue();
+         for (int y = 0; y < dataCol.length && y < this.level.depth; y++) {
+            int data = dataCol[y] & 0xFF;
+            if (data == 0) {
+               continue;
+            }
+            int id = this.level.getTile(x, y, z);
+            if (Blocks.isFluid(id)) {
+               this.scheduleTick(x, y, z, Fluid.of(id).ticks);
+            } else if (Blocks.isSapling(id)) {
+               this.scheduleTick(x, y, z, SAPLING_TICKS);
+            } else if (id == Blocks.REED_ID || id == Blocks.CACTUS_ID) {
+               this.scheduleTick(x, y, z, GROWTH_TICKS);
+            } else if (id == Blocks.ICE_ID || id == Blocks.SNOW_LAYER_ID
+               || id == Blocks.SNOW_BLOCK_ID) {
+               this.scheduleTick(x, y, z, MELT_TICKS);
+            }
+         }
+      }
    }
    private void hardenNeighbors(int x, int y, int z) {
       for (int[] d : Dirs.DIRS) {
@@ -424,7 +447,7 @@ final class FluidSimulator {
    }
 
    static int effLevel(int data) {
-      return data >= 8 ? 0 : data;
+      return data & 7;
    }
 }
 

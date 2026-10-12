@@ -26,6 +26,8 @@ working-storage section.
    occurs 921600 times.
 01 first-frame pic 9 value 1.
 01 row-dirty pic 9 value 1.
+01 force-full pic 9 value 0.
+01 frames-since-full pic 9(9) comp-5 value 0.
 01 pix-count pic 9(9) comp-5 value 0.
 01 raw-top pic 9(9) comp-5 value 0.
 01 raw-bot pic 9(9) comp-5 value 0.
@@ -232,6 +234,11 @@ main-section.
                             *> to the end marker and present the frame
                             *> atomically (no sweep); others ignore both.
                             display esc-char "[?2026h" with no advancing
+                            add 1 to frames-since-full
+                            if frames-since-full >= 60
+                                move 1 to force-full
+                                move 0 to frames-since-full
+                            end-if
                             if function trim(mode-val) = "ASCII"
                                 or function trim(mode-val) = "MONO"
                                 perform render-ascii
@@ -244,6 +251,7 @@ main-section.
                             end-if
                             display esc-char "[?2026l" with no advancing
                             move 0 to first-frame
+                            move 0 to force-full
                             add 1 to frames-done
                             if once-flag = 1
                                 move 1 to exit-flag
@@ -635,7 +643,7 @@ render-ascii.
             compute rowbase-bot = by-val * w-val * 3
             move rowbase-bot to raw-bot
         end-if
-        if first-frame = 1
+        if first-frame = 1 or force-full = 1
             move 1 to row-dirty
         else
             move 0 to row-dirty
@@ -659,9 +667,16 @@ render-ascii.
             end-perform
         end-if
         if row-dirty = 0
-            display row-advance with no advancing
+            if py2 + 1 = drows
+                continue
+            else
+                display row-advance with no advancing
+            end-if
         else
         move rowbase-top to raw-top
+        if by-val < h-val
+            move rowbase-bot to raw-bot
+        end-if
         perform varying px from 0 by 1 until px >= dcols
             move ws-bytes(raw-top + 1) to rv
             move ws-bytes(raw-top + 2) to gv
@@ -715,13 +730,20 @@ render-ascii.
             add step3 to raw-bot
         end-perform
         if mono-flag = 1
-            display line-buf(1:dcols)
+            if py2 + 1 = drows
+                display line-buf(1:dcols) with no advancing
+            else
+                display line-buf(1:dcols)
+            end-if
         else
         string esc-char "[0m" delimited by size
             into line-buf with pointer ptr
         end-string
         compute line-len = ptr - 1
-        display line-buf(1:line-len)
+        if py2 + 1 = drows
+            display line-buf(1:line-len) with no advancing
+        else
+            display line-buf(1:line-len)
         end-if
         end-if
     end-perform.
@@ -745,7 +767,7 @@ render-truecolor.
         *> Row diff: identical sampled source bytes mean the screen row
         *> is already right — emit just a newline to advance. First frame
         *> always renders (no previous to match).
-        if first-frame = 1
+        if first-frame = 1 or force-full = 1
             move 1 to row-dirty
         else
             move 0 to row-dirty
@@ -769,9 +791,16 @@ render-truecolor.
             end-perform
         end-if
         if row-dirty = 0
-            display row-advance with no advancing
+            if py2 + 1 = drows
+                continue
+            else
+                display row-advance with no advancing
+            end-if
         else
         move rowbase-top to raw-top
+        if by-val < h-val
+            move rowbase-bot to raw-bot
+        end-if
         perform varying px from 0 by 1 until px >= dcols
             move ws-bytes(raw-top + 1) to rv
             move ws-bytes(raw-top + 2) to gv
@@ -827,7 +856,11 @@ render-truecolor.
             into line-buf with pointer ptr
         end-string
         compute line-len = ptr - 1
-        display line-buf(1:line-len)
+        if py2 + 1 = drows
+            display line-buf(1:line-len) with no advancing
+        else
+            display line-buf(1:line-len)
+        end-if
         end-if
     end-perform.
 render-ansi16.
@@ -846,7 +879,7 @@ render-ansi16.
             compute rowbase-bot = by-val * w-val * 3
             move rowbase-bot to raw-bot
         end-if
-        if first-frame = 1
+        if first-frame = 1 or force-full = 1
             move 1 to row-dirty
         else
             move 0 to row-dirty
@@ -870,9 +903,16 @@ render-ansi16.
             end-perform
         end-if
         if row-dirty = 0
-            display row-advance with no advancing
+            if py2 + 1 = drows
+                continue
+            else
+                display row-advance with no advancing
+            end-if
         else
         move rowbase-top to raw-top
+        if by-val < h-val
+            move rowbase-bot to raw-bot
+        end-if
         perform varying px from 0 by 1 until px >= dcols
             move ws-bytes(raw-top + 1) to rv
             move ws-bytes(raw-top + 2) to gv
@@ -892,8 +932,6 @@ render-ansi16.
                 move 0 to gb
                 move 0 to bb
             end-if
-            *> 256-color mapping: grey ramp for flat (low-spread)
-            *> content, 6x6x6 cube otherwise.
             move rv to mx
             if gv > mx
                 move gv to mx
@@ -985,6 +1023,10 @@ render-ansi16.
             into line-buf with pointer ptr
         end-string
         compute line-len = ptr - 1
-        display line-buf(1:line-len)
+        if py2 + 1 = drows
+            display line-buf(1:line-len) with no advancing
+        else
+            display line-buf(1:line-len)
+        end-if
         end-if
     end-perform.

@@ -12,14 +12,6 @@
 set -e
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
-# Pinned python (Xcode CLT 3.9 — PATH pythons like ~/.local/bin drift across
-# machines; same pin as tools/publish.sh, which shells out to ./build.sh
-# strip and must not silently switch interpreters mid-publish).
-PYTHON="/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9"
-if [ ! -x "$PYTHON" ]; then
-  echo "need $PYTHON (Xcode command line tools)" >&2
-  exit 1
-fi
 # JDK discovery (no machine-specific paths — must work on a fresh clone):
 # JAVA_HOME if 17+, else javac on PATH if 17+, else a Temurin-style install
 # under ~/Library, /Library or /usr/lib/jvm. 17.x preferred (the verified
@@ -143,6 +135,22 @@ case "${1:-build}" in
   run) shift; compile; echo BUILD_OK; "$JAVA_BIN" $JAVA_FLAGS -cp "out:res:$LIB" com.strata.Boot "$@" ;;
   test) compile out-test; echo BUILD_OK; run_tests out-test ;;
   strip)
+    # Pinned python (Xcode CLT 3.9 — PATH pythons like ~/.local/bin drift
+    # across machines; same pin as tools/publish.sh, which shells out to
+    # ./build.sh strip and must not silently switch interpreters
+    # mid-publish). Fallback to a PATH python3 elsewhere (Linux boxes, no
+    # Xcode) — the stripped mirror is compile-checked below, so an
+    # interpreter drift cannot ship silently. Resolved here, not at the
+    # top: the other commands must work on machines without any python.
+    PYTHON="/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9"
+    if [ ! -x "$PYTHON" ]; then
+      if command -v python3 >/dev/null 2>&1; then
+        PYTHON="python3"
+      else
+        echo "need python3 for strip (Xcode command line tools on macOS)" >&2
+        exit 1
+      fi
+    fi
     if [ ! -f tools/strip.py ]; then
       echo "strip unavailable in this tree (dev-only tool)"; exit 1
     fi
@@ -199,6 +207,14 @@ case "${1:-build}" in
       esac
     else
       echo "note: no $PLAT viewer binary (viewer-$PLAT), jar ships without the terminal viewer" >&2
+    fi
+    # Pascal input bridge rides along the same way, mac-arm64 only for now
+    # (native FPC build; cross Pascal later). Same warn-never-fail rule.
+    if [ "$PLAT" = "mac-arm64" ] && [ -x terminput ]; then
+      mkdir -p dist/work/terminal
+      cp terminput dist/work/terminal/terminput
+    elif [ "$PLAT" = "mac-arm64" ]; then
+      echo "note: no ./terminput binary, jar ships without the terminal input bridge" >&2
     fi
     find dist/work -name '.DS_Store' -delete
     rm -rf dist/work/__MACOSX

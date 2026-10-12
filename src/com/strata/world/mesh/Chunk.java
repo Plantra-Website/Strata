@@ -123,6 +123,9 @@ public class Chunk {
                if (block == null) {
                   continue;
                }
+               if (this.level.getTile(x, y, z) != tileId) {
+                  continue;
+               }
                if (block.light > 0 && this.level.getBlockLevel(x, y, z) < block.light) {
                   this.level.floodAdd(x, y, z, block.light);
                }
@@ -210,7 +213,14 @@ public class Chunk {
       GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
       uploadNs += System.nanoTime() - t0;
       updates++;
-      this.hasVbo = true;
+      boolean anyVbo = false;
+      for (int layer = 0; layer < 3; layer++) {
+         if (this.vbo[layer] != 0) {
+            anyVbo = true;
+            break;
+         }
+      }
+      this.hasVbo = anyVbo;
       this.aabb = new AABB(this.x0, m.y0, this.z0, this.x0 + 16, m.y1, this.z0 + 16);
       if (this.dirtyVersion == m.version) {
          this.dirty = false;
@@ -290,6 +300,7 @@ public class Chunk {
           if (this.vbo[i] != 0) {
              GlResources.release(this.vbo[i]);
           }
+          this.vbo[i] = 0;
        }
        this.hasVbo = false;
     }

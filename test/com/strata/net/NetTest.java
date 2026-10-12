@@ -108,10 +108,11 @@ public class NetTest {
         mh.entityId = 9;
         mh.hp = 17;
         mh.xd = 0.3F;
+        mh.yd = 0.12F;
         mh.zd = -0.1F;
         MobHurt mh2 = (MobHurt)roundtrip(mh);
         check(mh2.entityId == 9 && mh2.hp == 17, "mob hurt hp");
-        check(mh2.xd == 0.3F && mh2.zd == -0.1F, "mob hurt knockback");
+        check(mh2.xd == 0.3F && mh2.yd == 0.12F && mh2.zd == -0.1F, "mob hurt knockback");
         AttackMob am = new AttackMob();
         am.entityId = 9;
         check(((AttackMob)roundtrip(am)).entityId == 9, "attack mob id");

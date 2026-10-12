@@ -10,7 +10,8 @@ import java.util.Map;
 public final class Profiler {
    private static volatile boolean enabled = false;
    private static final int PRINT_EVERY = 600;
-   private static final ArrayDeque<Entry> stack = new ArrayDeque<>();
+   private static final ThreadLocal<ArrayDeque<Entry>> stacks =
+      ThreadLocal.withInitial(ArrayDeque::new);
    private static final HashMap<String, Long> totals = new HashMap<>();
    private static int frames = 0;
 
@@ -23,7 +24,6 @@ public final class Profiler {
    public static void setEnabled(boolean on) {
       synchronized (Profiler.class) {
          enabled = on;
-         stack.clear();
          totals.clear();
          frames = 0;
       }
@@ -37,21 +37,20 @@ public final class Profiler {
       if (!enabled) {
          return;
       }
-      synchronized (Profiler.class) {
-         stack.addLast(new Entry(name, System.nanoTime()));
-      }
+      stacks.get().addLast(new Entry(name, System.nanoTime()));
    }
 
    public static void pop() {
       if (!enabled) {
          return;
       }
+      ArrayDeque<Entry> stack = stacks.get();
+      if (stack.isEmpty()) {
+         return;
+      }
+      Entry e = stack.removeLast();
+      long dt = System.nanoTime() - e.start;
       synchronized (Profiler.class) {
-         if (stack.isEmpty()) {
-            return;
-         }
-         Entry e = stack.removeLast();
-         long dt = System.nanoTime() - e.start;
          Long prev = totals.get(e.name);
          totals.put(e.name, prev == null ? dt : prev + dt);
       }

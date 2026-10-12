@@ -28,11 +28,14 @@ public class TileUpdate extends Packet {
 
    @Override
    public void read(DataInput in) throws IOException {
-      this.x = in.readInt();
-      this.y = in.readInt();
-      this.z = in.readInt();
-      this.type = in.readByte() & 0xFF;
+      this.x = Packet.readCoord(in);
+      this.y = Packet.readCoord(in);
+      this.z = Packet.readCoord(in);
+      this.type = Packet.readBlockId(in);
       this.data = in.readByte() & 0xFF;
+      if (this.data > 15) {
+         throw new IOException("data out of range: " + this.data);
+      }
    }
 }
 

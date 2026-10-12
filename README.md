@@ -47,12 +47,13 @@ each jar).
 - `--seed N` — new world / reseed (default: stored seed).
 - `--world DIR` — world slot dir owning `region/` + `world.dat` +
   `player.dat` (default `saves/testing`).
-- `--import IMG` — paste a two-tone picture as blocks into a FRESH void
-  world, then play it (needs an unused `--world` dir).
+- `--import IMG` — paste a grayscale picture (PNG/JPG) as blocks into a
+  FRESH void world, then play it (needs an unused `--world` dir);
+  luminance picks the nearest block on a 9-step dark→light ramp.
 - `--pack NAME` — texture-pack zip file name under `pack/` (missing file
   reverts to built-ins).
-- `--terminal [WxH[:FPS]] [viewer flags]` — mirror each frame to
-  `/tmp/strata-frame.bin` (raw RGB) and auto-launch the COBOL terminal
+- `--terminal [WxH[:FPS]] [viewer flags]` — mirror each frame to a
+  raw-RGB file and auto-launch the COBOL terminal
   viewer in the same terminal (default tap `160x120@15`; the game loop
   caps itself to FPS while the tap is active). Viewer sub-flags ride on
   the same flag and are forwarded: `--mode truecolor|ascii|mono|ansi`,
@@ -63,11 +64,22 @@ each jar).
   flavors carry their native viewer: mac-arm64, mac-x64, linux-x64,
   windows-x64); without one the game runs viewerless. `STRATA_VIEWER_LIB`
   overrides the viewer library path when `libcob` is not installed.
-  While the tap is active the game log moves to `/tmp/strata-game.log`
-  (same dir as the frame file) so log lines can't tear the fullscreen
-  render; errors additionally stay on stderr. On Windows the frame and
-  log live under `%TEMP%` instead, and the launcher hands that path to
-  the viewer via `--file`, so no manual path juggling is needed.
+  The frame file, the input-bridge snapshot and the relocated log all
+  live in one private per-launch temp dir (0700, removed on exit) — not
+  the old fixed `/tmp` names, which any local user could read (screen)
+  or write (keystroke injection) and which two game instances clobbered.
+  The launcher hands the real paths to the viewer (`--file`) and the
+  input bridge (its file args), so no path juggling is needed on any
+  platform. While the tap is active the game log moves to `game.log`
+  beside the frame file so log lines can't tear the fullscreen
+  render; errors additionally stay on stderr.
+  The tap also auto-launches the Pascal input bridge (`terminput`,
+  same resolution rules as the viewer): terminal keys/mouse merge with
+  window input, so the game stays playable with the window in the
+  background.   Hotbar keys, look, buttons, wheel, quit, and inventory clicks all
+  work from the terminal (clicks map cells back onto window pixels via
+  the tap size + forwarded `--scale`, so auto-launched viewers always
+  agree; a manual `--scale` the game doesn't know about misplaces them).
 
 ## Controls
 

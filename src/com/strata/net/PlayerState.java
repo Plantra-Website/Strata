@@ -48,6 +48,14 @@ public class PlayerState extends Packet {
       this.spectator = (flags & 2) != 0;
       this.breakProgress = in.readFloat();
       this.hp = in.readInt();
+      if (!Float.isFinite(this.x) || !Float.isFinite(this.y) || !Float.isFinite(this.z)
+         || !Float.isFinite(this.yaw) || !Float.isFinite(this.pitch)
+         || !Float.isFinite(this.breakProgress)) {
+         throw new IOException("non-finite player state");
+      }
+      if (this.hp < 0 || this.hp > Packet.MAX_HP) {
+         throw new IOException("hp out of range: " + this.hp);
+      }
    }
 }
 

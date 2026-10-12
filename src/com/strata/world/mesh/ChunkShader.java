@@ -1,5 +1,6 @@
 package com.strata.world.mesh;
 
+import com.strata.core.GlResources;
 import com.strata.core.Log;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
@@ -88,14 +89,21 @@ public class ChunkShader {
       }
       int vs = compile(GL20.GL_VERTEX_SHADER, VERT, "vertex");
       int fs = compile(GL20.GL_FRAGMENT_SHADER, FRAG, "fragment");
-      program = GL20.glCreateProgram();
-      GL20.glAttachShader(program, vs);
-      GL20.glAttachShader(program, fs);
-      GL20.glLinkProgram(program);
-      if (GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
-         String log = GL20.glGetProgramInfoLog(program, 2048);
+      int prog = GL20.glCreateProgram();
+      GL20.glAttachShader(prog, vs);
+      GL20.glAttachShader(prog, fs);
+      GL20.glLinkProgram(prog);
+      if (GL20.glGetProgrami(prog, GL20.GL_LINK_STATUS) == GL11.GL_FALSE) {
+         String log = GL20.glGetProgramInfoLog(prog, 2048);
+         GL20.glDeleteShader(vs);
+         GL20.glDeleteShader(fs);
+         GL20.glDeleteProgram(prog);
          throw new RuntimeException("ChunkShader link failed: " + log);
       }
+      program = prog;
+      GlResources.track(program, "shader");
+      GlResources.track(vs, "shader");
+      GlResources.track(fs, "shader");
       uSub = GL20.glGetUniformLocation(program, "uSub");
       uFogColor = GL20.glGetUniformLocation(program, "uFogColor");
       uFogStart = GL20.glGetUniformLocation(program, "uFogStart");

@@ -2,6 +2,8 @@ package com.strata.world.light;
 
 import java.util.HashSet;
 
+import com.strata.core.BlockerProbe;
+
 public class LightTest {
    static int failures = 0;
 
@@ -176,6 +178,20 @@ public class LightTest {
       int notchDeep = sky5.get(5, 8, 0);
       check(notchDeep > 0, "notch interior lit, not zero (got " + notchDeep + ")");
       System.out.println("notch ok");
+
+      w.opaque.clear();
+      w.opaque.add(StubWorld.key(0, 10, 0)); 
+      SkyLightEngine sky6 = new SkyLightEngine(w);
+      BlockerProbe stale = new BlockerProbe() {
+         @Override public boolean isBlocker(int x, int y, int z) {
+            return false; 
+         }
+      };
+      sky6.reconcileSkyChunk(0, 0, stale);
+      check(sky6.get(0, 15, 0) == 15, "above stone still bright");
+      check(sky6.get(0, 10, 0) == 0, "stale snapshot doesn't light opaque cell (got " + sky6.get(0, 10, 0) + ")");
+      check(sky6.get(0, 9, 0) > 0, "light bends around stone from sides (got " + sky6.get(0, 9, 0) + ")");
+      System.out.println("stale-snapshot reconcile ok");
 
       if (failures > 0) { System.out.println(failures + " FAILURES"); System.exit(1); }
       System.out.println("LIGHT PASS");

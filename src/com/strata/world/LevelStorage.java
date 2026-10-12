@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
+import java.io.IOException;
 
 final class LevelStorage {
    private static final int SAVE_MAGIC = 0x52445731; 
@@ -25,13 +26,18 @@ final class LevelStorage {
 
    private final Level level;
    private final File worldDir;
+   private final SessionLock.Lock lock;
    private final HashSet<Long> dirtyRegions = new HashSet<>();
    private final HashSet<Long> loadedRegions = new HashSet<>();
-   private boolean warnedNewerSave = false;
 
    LevelStorage(Level level, File worldDir) {
       this.level = level;
       this.worldDir = worldDir;
+      SessionLock.Lock l = SessionLock.acquire(worldDir);
+      if (l == null) {
+         throw new RuntimeException("world dir is locked by another process: " + worldDir);
+      }
+      this.lock = l;
    }
 
    static long regionKey(int rx, int rz) {
@@ -66,6 +72,8 @@ final class LevelStorage {
       return 0;
    }
 
+    private static final int MAX_LEGACY_INFLATED = 128 * 1024 * 1024;
+
     private static byte[] readMaybeGzip(File legacy) throws Exception {
        byte[] fileBytes;
        try (java.io.InputStream in = new java.io.FileInputStream(legacy)) {
@@ -78,9 +86,18 @@ final class LevelStorage {
           int n;
           while ((n = dis.read(buf)) > 0) {
              raw.write(buf, 0, n);
+             if (raw.size() > MAX_LEGACY_INFLATED) {
+                throw new IOException("legacy level.dat inflates past "
+                   + MAX_LEGACY_INFLATED + " bytes (decompression bomb?)");
+             }
           }
           dis.close();
           return raw.toByteArray();
+       } catch (java.util.zip.ZipException e) {
+          Log.info("world", "level.dat is not gzip, trying raw (" + fileBytes.length + " bytes)");
+          return fileBytes;
+       } catch (IOException e) {
+          throw e;
        } catch (Exception e) {
           Log.info("world", "level.dat is not gzip, trying raw (" + fileBytes.length + " bytes)");
           return fileBytes;
@@ -97,7 +114,8 @@ final class LevelStorage {
    void migrateLegacySave() {
       File regionDir = new File(this.worldDir, "region");
       File legacy = new File(this.worldDir, "level.dat");
-      if (regionDir.exists() || !legacy.exists()) {
+      File imported = new File(this.worldDir, "level.dat.imported");
+      if (imported.exists() || !legacy.exists()) {
          return;
       }
       try {
@@ -194,8 +212,12 @@ final class LevelStorage {
       int rz1 = Math.floorDiv(maxCcz, REGION_SIZE);
       for (int rx = rx0; rx <= rx1; rx++) {
          for (int rz = rz0; rz <= rz1; rz++) {
-            if (this.loadedRegions.add(regionKey(rx, rz))) {
-               this.loadRegion(rx, rz);
+            long rkey = regionKey(rx, rz);
+            if (this.loadedRegions.contains(rkey)) {
+               continue;
+            }
+            if (this.loadRegion(rx, rz)) {
+               this.loadedRegions.add(rkey);
             }
          }
       }
@@ -222,8 +244,12 @@ final class LevelStorage {
          try {
             int rx = Integer.parseInt(parts[0]);
             int rz = Integer.parseInt(parts[1]);
-            if (this.loadedRegions.add(regionKey(rx, rz))) {
-               this.loadRegion(rx, rz);
+            long rkey = regionKey(rx, rz);
+            if (this.loadedRegions.contains(rkey)) {
+               continue;
+            }
+            if (this.loadRegion(rx, rz)) {
+               this.loadedRegions.add(rkey);
             }
          } catch (NumberFormatException e) {
             Log.warn("world", "skipping odd region file " + name);
@@ -231,10 +257,10 @@ final class LevelStorage {
       }
    }
 
-   private void loadRegion(int rx, int rz) {
+   private boolean loadRegion(int rx, int rz) {
       File file = this.regionFile(rx, rz);
       if (!file.exists()) {
-         return;
+         return false;
       }
       this.level.skyLight.clearSeeded();
       int count = 0;
@@ -243,7 +269,7 @@ final class LevelStorage {
          region = new RegionFile(file);
       } catch (Exception e) {
          Log.warn("world", "failed to open region " + rx + "," + rz + ": " + e);
-         return;
+         return false;
       }
       try {
          for (int lx = 0; lx < REGION_SIZE; lx++) {
@@ -272,6 +298,7 @@ final class LevelStorage {
       if (count > 0) {
           Log.info("world", "loaded region " + rx + "," + rz + " (" + count + " columns)");
       }
+      return true;
    }
 
    private boolean readColumnChunk(byte[] nbt) {
@@ -295,9 +322,9 @@ final class LevelStorage {
           }
           NBT.Tag versionTag = lvl.get("DataVersion");
           int dataVersion = versionTag instanceof NBT.IntTag ? lvl.integer("DataVersion") : 0;
-          if (dataVersion > SAVE_VERSION && !this.warnedNewerSave) {
-             this.warnedNewerSave = true;
-             Log.warn("world", "save version " + dataVersion + " newer than " + SAVE_VERSION + ", loading anyway");
+          if (dataVersion > SAVE_VERSION) {
+             Log.warn("world", "save version " + dataVersion + " newer than " + SAVE_VERSION
+                + ", loading anyway — fields above v" + SAVE_VERSION + " are lost on next save");
           }
          NBT.Tag sectionsTag = lvl.get("Sections");
          if (!(sectionsTag instanceof NBT.ListTag)) {
@@ -473,29 +500,61 @@ final class LevelStorage {
                }
             }
          }
+         java.util.HashSet<Long> failed = new java.util.HashSet<>();
          for (Map.Entry<Long, ArrayList<int[]>> e : byRegion.entrySet()) {
             long rkey = e.getKey();
             int rx = (int)(rkey >> 32);
             int rz = (int)(rkey & 0xFFFFFFFFL);
-            RegionFile region = new RegionFile(this.regionFile(rx, rz));
-            for (int[] cc : e.getValue()) {
-               int lx = Math.floorMod(cc[0], REGION_SIZE);
-               int lz = Math.floorMod(cc[1], REGION_SIZE);
-               if (this.columnIsDefault(cc[0], cc[1])) {
-                  region.clearChunk(lx, lz);
-                  this.level.columns.remove(Level.columnKey(cc[0], cc[1]));
-                  this.level.dataColumns.remove(Level.columnKey(cc[0], cc[1]));
-               } else {
-                  region.writeChunk(lx, lz, this.writeColumnChunk(cc[0], cc[1]));
+            try {
+               RegionFile region = null;
+               File regionFile = this.regionFile(rx, rz);
+               try {
+                  region = new RegionFile(regionFile);
+               } catch (Exception openErr) {
+                  File corrupt = new File(regionFile.getParentFile(),
+                     regionFile.getName() + ".corrupt-" + System.currentTimeMillis());
+                  if (regionFile.renameTo(corrupt)) {
+                     Log.error("world", "quarantined corrupt region " + rx + "," + rz
+                        + " -> " + corrupt.getName());
+                  } else {
+                     Log.error("world", "failed to open region " + rx + "," + rz
+                        + " and could not quarantine: " + openErr);
+                     failed.add(rkey);
+                     continue;
+                  }
+                  try {
+                     region = new RegionFile(regionFile);
+                  } catch (Exception openErr2) {
+                     Log.error("world", "failed to recreate region " + rx + "," + rz, openErr2);
+                     failed.add(rkey);
+                     continue;
+                  }
                }
+               try {
+                  for (int[] cc : e.getValue()) {
+                     int lx = Math.floorMod(cc[0], REGION_SIZE);
+                     int lz = Math.floorMod(cc[1], REGION_SIZE);
+                     if (this.columnIsDefault(cc[0], cc[1])) {
+                        region.clearChunk(lx, lz);
+                        this.level.columns.remove(Level.columnKey(cc[0], cc[1]));
+                        this.level.dataColumns.remove(Level.columnKey(cc[0], cc[1]));
+                     } else {
+                        region.writeChunk(lx, lz, this.writeColumnChunk(cc[0], cc[1]));
+                     }
+                  }
+                  if (region.maybeCompact()) {
+                     Log.info("world", "compacted region " + rx + "," + rz + " (waste exceeded 50%)");
+                  }
+               } finally {
+                  region.close();
+               }
+            } catch (Exception regionErr) {
+               failed.add(rkey);
+               Log.error("world", "save region " + rx + "," + rz + " failed", regionErr);
             }
-            if (region.maybeCompact()) {
-               Log.info("world", "compacted region " + rx + "," + rz + " (waste exceeded 50%)");
-            }
-            region.close();
          }
-          Log.info("world", "saved " + byRegion.size() + " region(s)");
-         this.dirtyRegions.clear();
+          Log.info("world", "saved " + (byRegion.size() - failed.size()) + " region(s)");
+         this.dirtyRegions.removeAll(failed);
        } catch (Exception e) {
           Log.error("world", "save failed", e);
        }

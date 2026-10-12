@@ -17,6 +17,7 @@ public class Entity {
    public float zd;
    public AABB bb;
    public boolean onGround = false;
+   public boolean blocked = false; 
    public float stepHeight = 0.0F;
 
    protected Entity() {
@@ -44,6 +45,7 @@ public class Entity {
       float xaOrg = xa;
       float yaOrg = ya;
       float zaOrg = za;
+      this.blocked = false;
       float sx0 = this.bb.x0;
       float sy0 = this.bb.y0;
       float sz0 = this.bb.z0;
@@ -74,15 +76,17 @@ public class Entity {
      this.onGround = yaOrg != ya && yaOrg < 0.0F;
      if (xaOrg != xa) {
         this.xd = 0.0F;
+        this.blocked = true;
      }
 
      if (yaOrg != ya) {
         this.yd = 0.0F;
      }
 
-      if (zaOrg != za) {
-         this.zd = 0.0F;
-      }
+     if (zaOrg != za) {
+        this.zd = 0.0F;
+        this.blocked = true;
+     }
 
       if (this.stepHeight > 0.0F && this.onGround && (xaOrg != xa || zaOrg != za)) {
          float directX = this.bb.x0 - sx0;

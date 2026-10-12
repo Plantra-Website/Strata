@@ -11,10 +11,11 @@ import com.strata.core.Log;
 import com.strata.core.MathHelper;
 import com.strata.world.Level;
 import com.strata.world.LevelListener;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import org.lwjgl.opengl.GL11;
@@ -24,7 +25,8 @@ import org.lwjgl.opengl.GL15;
 public class LevelRenderer implements LevelListener {
     private static final int CHUNK_SIZE = 16;
    private final Level level;
-   private final HashMap<Long, Chunk> chunks = new HashMap<>();
+   private final ConcurrentHashMap<Long, Chunk> chunks = new ConcurrentHashMap<>();
+   private final ConcurrentLinkedQueue<int[]> notifyQueue = new ConcurrentLinkedQueue<>();
    private static final java.util.Comparator<Chunk> MESH_ORDER = new java.util.Comparator<Chunk>() {
       @Override public int compare(Chunk a, Chunk b) {
          if (a.queueDist != b.queueDist) {
@@ -77,6 +79,7 @@ public class LevelRenderer implements LevelListener {
                     if (failed != null) {
                         synchronized (failed) {
                             failed.meshState = 0;
+                            failed.pending = null;
                         }
                     }
                 }
@@ -143,6 +146,8 @@ public class LevelRenderer implements LevelListener {
                 Thread.sleep(warmed >= 8 ? 50L : 500L);
              } catch (InterruptedException e) {
                 return;
+             } catch (Throwable e) {
+                Log.error("mesh", "carve-ahead iteration failed", e);
              }
           }
        }, "carve-ahead");
@@ -280,6 +285,7 @@ public class LevelRenderer implements LevelListener {
 
    public void render(float px, float pz, boolean fullBright, int layer) {
       if (layer == 0) {
+         this.drainNotify();
          int pcx = chunkCoord(px);
          int pcz = chunkCoord(pz);
          if (pcx != this.lastCx || pcz != this.lastCz || Config.VIEW_RADIUS != this.lastRadius) {
@@ -297,7 +303,10 @@ public class LevelRenderer implements LevelListener {
             n = this.offerDirty(pcx, pcz, n, true);      
          }
          this.uploadReady();
-         this.cachedFrustum = live;
+         this.cachedFrustum = new Frustum();
+         for (int i = 0; i < 6; i++) {
+            System.arraycopy(live.m_Frustum[i], 0, this.cachedFrustum.m_Frustum[i], 0, 4);
+         }
       }
       Frustum frustum = this.cachedFrustum;
       GL11.glEnable(GL11.GL_TEXTURE_2D);
@@ -457,12 +466,19 @@ public class LevelRenderer implements LevelListener {
 
    @Override
    public void tileChanged(int x, int y, int z) {
-      this.setDirty(x - 1, y - 1, z - 1, x + 1, y + 1, z + 1);
+      this.notifyQueue.offer(new int[]{x - 1, y - 1, z - 1, x + 1, y + 1, z + 1});
    }
 
    @Override
    public void lightColumnChanged(int x, int z, int y0, int y1) {
-      this.setDirty(x - 1, y0 - 1, z - 1, x + 1, y1 + 1, z + 1);
+      this.notifyQueue.offer(new int[]{x - 1, y0 - 1, z - 1, x + 1, y1 + 1, z + 1});
+   }
+
+   private void drainNotify() {
+      int[] box;
+      while ((box = this.notifyQueue.poll()) != null) {
+         this.setDirty(box[0], box[1], box[2], box[3], box[4], box[5]);
+      }
    }
 }
 

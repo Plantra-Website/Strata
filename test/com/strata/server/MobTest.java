@@ -305,10 +305,11 @@ public class MobTest {
           check(mirror.get(7).x != x0 || mirror.get(7).z != 30.5F, "mirror integrates motion");
           check(mirror.get(7).hp == 20, "mirror ticks never damage");
           check(mirror.get(7).walkPhase > 0.0F, "stride accumulates from displacement");
-         mirror.hurt(7, 12, 0.5F, 0.0F);
+         mirror.hurt(7, 12, 0.5F, 0.1F, 0.0F);
          check(mirror.get(7).hp == 12, "mirror applies hurt hp");
          check(mirror.get(7).xd == 0.5F, "mirror applies hurt velocity");
-         mirror.hurt(99, 5, 0.0F, 0.0F);
+         check(mirror.get(7).yd == 0.1F, "mirror applies hurt lift");
+         mirror.hurt(99, 5, 0.0F, 0.0F, 0.0F);
          check(mirror.get(7).hp == 12, "unknown hurt ids ignored");
           mirror.remove(7);
           check(mirror.get(7) == null, "mirror drops on remove");

@@ -37,18 +37,32 @@ public class BulkTiles extends Packet {
    @Override
    public void read(DataInput in) throws IOException {
       int count = in.readInt();
-      this.columns = new HashMap<>(count * 2 + 1);
+      if (count < 0 || count > Packet.MAX_COLUMNS) {
+         throw new IOException("column count out of range: " + count);
+      }
+      this.columns = new HashMap<>(Math.min(count * 2 + 1, Packet.MAX_COLUMNS * 2 + 1));
       for (int i = 0; i < count; i++) {
          long key = in.readLong();
-         byte[] col = new byte[in.readInt()];
+         int colLen = in.readInt();
+         if (colLen < 0 || colLen > Packet.MAX_COLUMN_CELLS) {
+            throw new IOException("column length out of range: " + colLen);
+         }
+         byte[] col = new byte[colLen];
          in.readFully(col);
          this.columns.put(key, col);
       }
       int dcount = in.readInt();
-      this.datas = new HashMap<>(dcount * 2 + 1);
+      if (dcount < 0 || dcount > Packet.MAX_COLUMNS) {
+         throw new IOException("data column count out of range: " + dcount);
+      }
+      this.datas = new HashMap<>(Math.min(dcount * 2 + 1, Packet.MAX_COLUMNS * 2 + 1));
       for (int i = 0; i < dcount; i++) {
          long key = in.readLong();
-         byte[] col = new byte[in.readInt()];
+         int colLen = in.readInt();
+         if (colLen < 0 || colLen > Packet.MAX_COLUMN_CELLS) {
+            throw new IOException("data column length out of range: " + colLen);
+         }
+         byte[] col = new byte[colLen];
          in.readFully(col);
          this.datas.put(key, col);
       }

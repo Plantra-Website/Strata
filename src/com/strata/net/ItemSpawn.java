@@ -35,13 +35,20 @@ public class ItemSpawn extends Packet {
    @Override
    public void read(DataInput in) throws IOException {
       this.entityId = in.readInt();
+      if (this.entityId < 0 || this.entityId > Packet.MAX_ENTITY_ID) {
+         throw new IOException("entity id out of range: " + this.entityId);
+      }
       this.x = in.readFloat();
       this.y = in.readFloat();
       this.z = in.readFloat();
       this.xd = in.readFloat();
       this.yd = in.readFloat();
       this.zd = in.readFloat();
-      this.blockId = in.readByte() & 0xFF;
+      this.blockId = Packet.readBlockId(in);
+      if (!Float.isFinite(this.x) || !Float.isFinite(this.y) || !Float.isFinite(this.z)
+         || !Float.isFinite(this.xd) || !Float.isFinite(this.yd) || !Float.isFinite(this.zd)) {
+         throw new IOException("non-finite item state");
+      }
    }
 }
 

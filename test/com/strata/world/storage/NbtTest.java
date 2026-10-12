@@ -3,6 +3,7 @@ package com.strata.world.storage;
 import com.strata.world.storage.nbt.NBT;
 import com.strata.world.storage.nbt.RegionFile;
 import java.io.*;
+import java.util.zip.DeflaterOutputStream;
 
 public class NbtTest {
     static int failures = 0;
@@ -39,6 +40,22 @@ public class NbtTest {
 
     static NBT.CompoundTag fromBytes(byte[] data) throws Exception {
         return NBT.readRoot(new DataInputStream(new ByteArrayInputStream(data)));
+    }
+
+    static byte[] nestBytes(int depth) throws IOException {
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        DataOutputStream d = new DataOutputStream(b);
+        d.writeByte(10); 
+        d.writeUTF("");
+        for (int i = 0; i < depth; i++) {
+            d.writeByte(10); 
+            d.writeUTF("");
+        }
+        for (int i = 0; i <= depth; i++) {
+            d.writeByte(0); 
+        }
+        d.flush();
+        return b.toByteArray();
     }
 
     public static void main(String[] args) throws Exception {
@@ -133,6 +150,102 @@ public class NbtTest {
            capped = false;
         }
         check(capped, "oversize NBT stays IOException");
+
+        try {
+            fromBytes(nestBytes(10000));
+            check(false, "deep nesting read without throwing");
+        } catch (IOException e) {
+            check(e.getMessage() != null && e.getMessage().contains("too deep"),
+                "deep nesting rejected as IOException (" + e.getMessage() + ")");
+        } catch (StackOverflowError e) {
+            check(false, "deep nesting blew the stack instead of hitting the cap");
+        }
+        NBT.CompoundTag wrap = new NBT.CompoundTag();
+        NBT.CompoundTag innerWrap = new NBT.CompoundTag();
+        innerWrap.put("v", new NBT.IntTag(7));
+        wrap.put("wrap", innerWrap);
+        check(fromBytes(toBytes(wrap)).compound("wrap").integer("v") == 7, "sane nesting still reads");
+        System.out.println("depth ok");
+
+        {
+            RegionFile ro = new RegionFile(new File(dir, "r.4.4.mca"));
+            byte[] blob = new byte[1200000]; 
+            new java.util.Random(4242).nextBytes(blob);
+            boolean rejected = false;
+            try {
+                ro.writeChunk(3, 4, blob);
+            } catch (IOException e) {
+                rejected = e.getMessage() != null && e.getMessage().contains("too large");
+            }
+            check(rejected, "oversize chunk write rejected loudly");
+            check(!ro.hasChunk(3, 4), "rejected chunk left unwritten");
+            ro.writeChunk(3, 4, toBytes(chunkPayload(3, 4)));
+            check(fromBytes(ro.readChunk(3, 4)).compound("Level").integer("xPos") == 3,
+                "region still writable after rejection");
+            ro.close();
+            System.out.println("oversize ok");
+        }
+
+        {
+            File gfile = new File(dir, "r.5.5.mca");
+            if (gfile.exists()) gfile.delete();
+            RegionFile rg = new RegionFile(gfile);
+            byte[] keep = toBytes(chunkPayload(1, 2));
+            byte[] write = toBytes(chunkPayload(6, 6));
+            rg.writeChunk(1, 2, keep);
+            rg.writeChunk(6, 6, write);
+            rg.close();
+            try (RandomAccessFile f = new RandomAccessFile(gfile, "rw")) {
+                int idx = (6 & 31) + ((6 & 31) << 5);
+                f.seek((long)idx * 4);
+                f.writeInt((1 << 8) | 8);
+            }
+            RegionFile rg2 = new RegionFile(gfile);
+            rg2.writeChunk(6, 6, write); 
+            check(java.util.Arrays.equals(rg2.readChunk(1, 2), keep),
+                "neighbor intact after corrupt-offset write");
+            check(java.util.Arrays.equals(rg2.readChunk(6, 6), write),
+                "corrupt-offset chunk rewritten readable");
+            rg2.close();
+            System.out.println("corrupt-offset ok");
+        }
+
+        {
+            byte[] bomb;
+            try {
+                ByteArrayOutputStream bombBytes = new ByteArrayOutputStream();
+                DeflaterOutputStream d = new DeflaterOutputStream(bombBytes);
+                byte[] zeros = new byte[65536];
+                for (int i = 0; i < 272; i++) d.write(zeros); 
+                d.close();
+                bomb = bombBytes.toByteArray();
+            } catch (IOException e) {
+                throw new Exception("bomb build failed", e);
+            }
+            int sectors = (bomb.length + 1 + 4 + 4095) / 4096;
+            File bfile = new File(dir, "r.6.6.mca");
+            if (bfile.exists()) bfile.delete();
+            try (RandomAccessFile f = new RandomAccessFile(bfile, "rw")) {
+                f.setLength(8192L + sectors * 4096L);
+                int idx = (1 & 31) + ((1 & 31) << 5);
+                f.seek((long)idx * 4);
+                f.writeInt((2 << 8) | sectors);
+                f.seek(8192L);
+                f.writeInt(bomb.length + 1);
+                f.writeByte(2); 
+                f.write(bomb);
+            }
+            boolean bombCaught = false;
+            try (RegionFile rb2 = new RegionFile(bfile)) {
+                rb2.readChunk(1, 1);
+            } catch (IOException e) {
+                bombCaught = true;
+            } catch (OutOfMemoryError e) {
+                bombCaught = false;
+            }
+            check(bombCaught, "decompression bomb rejected as IOException");
+            System.out.println("inflate-cap ok");
+        }
 
         if (failures == 0) System.out.println("ALL PASS");
         else { System.out.println(failures + " FAILURES"); System.exit(1); }

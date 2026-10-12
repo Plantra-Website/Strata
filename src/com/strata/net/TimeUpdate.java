@@ -21,6 +21,9 @@ public class TimeUpdate extends Packet {
    @Override
    public void read(DataInput in) throws IOException {
       this.time = in.readLong();
+      if (this.time < 0) {
+         throw new IOException("time out of range: " + this.time);
+      }
    }
 }
 

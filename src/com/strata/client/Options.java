@@ -34,8 +34,7 @@ public class Options {
       if (!file.isFile()) {
          return o;
       }
-      try {
-         BufferedReader in = new BufferedReader(new FileReader(file));
+      try (BufferedReader in = new BufferedReader(new FileReader(file))) {
          String line;
          while ((line = in.readLine()) != null) {
             line = line.trim();
@@ -48,7 +47,6 @@ public class Options {
             }
             o.set(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
          }
-         in.close();
       } catch (Exception e) {
          Log.warn("options", "could not read " + file + ", using defaults: " + e.getMessage());
       }

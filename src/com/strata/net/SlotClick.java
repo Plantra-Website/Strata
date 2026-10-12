@@ -21,6 +21,9 @@ public class SlotClick extends Packet {
    @Override
    public void read(DataInput in) throws IOException {
       this.slot = in.readByte() & 0xFF;
+      if (this.slot < 0 || this.slot >= Packet.INVENTORY_SLOTS) {
+         throw new IOException("slot out of range: " + this.slot);
+      }
    }
 }
 

@@ -11,10 +11,6 @@ import java.util.Map;
 import javax.imageio.ImageIO;
 
 public final class AtlasStitcher {
-   public static final int TILE = 16;
-   public static final int COLS = 16;
-   public static final int ATLAS_W = 2048;
-   public static final int ATLAS_H = 2048;
    private static final int[] SHEET_SIZES = {2048, 4096, 8192};
    private static int SHEET_PX = 0;
    public static final int MAX_TILES = 1024;
@@ -54,7 +50,6 @@ public final class AtlasStitcher {
       "blocks/destroy_stage_9.png",
       "blocks/grass_side_overlay.png",
       "blocks/oak_planks.png",
-      "blocks/torch_on.png",
       "blocks/water_still.png",
       "blocks/sandstone_side.png",
       "blocks/sandstone_top.png",
@@ -100,7 +95,11 @@ public final class AtlasStitcher {
    public static void validate() {
       ArrayList<String> missing = new ArrayList<>();
       for (String name : TILES) {
-         if (AtlasStitcher.class.getResourceAsStream("/textures/" + name) == null) {
+         try (java.io.InputStream probe = AtlasStitcher.class.getResourceAsStream("/textures/" + name)) {
+            if (probe == null) {
+               missing.add(name);
+            }
+         } catch (IOException e) {
             missing.add(name);
          }
       }
@@ -111,7 +110,6 @@ public final class AtlasStitcher {
 
    private static Map<String, BufferedImage> pack = new HashMap<>();
 
-    private static final ArrayList<String> ALT_NAMES = new ArrayList<>();
     private static final HashMap<Integer, int[]> ALT_SLOTS = new HashMap<>();
     private static BufferedImage stitchedAtlas = null;
 
@@ -223,10 +221,6 @@ public final class AtlasStitcher {
             }
             altMap.put(t, arr);
          }
-      }
-      ALT_NAMES.clear();
-      for (int i = TILES.length; i < names.size(); i++) {
-         ALT_NAMES.add(names.get(i));
       }
        ALT_SLOTS.clear();
        ALT_SLOTS.putAll(altMap);

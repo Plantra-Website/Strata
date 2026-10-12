@@ -30,16 +30,17 @@ public class PlaceBlock extends Packet {
 
    @Override
    public void read(DataInput in) throws IOException {
-      this.x = in.readInt();
-      this.y = in.readInt();
-      this.z = in.readInt();
+      this.x = Packet.readCoord(in);
+      this.y = Packet.readCoord(in);
+      this.z = Packet.readCoord(in);
       this.face = in.readByte();
-      this.blockId = in.readByte() & 0xFF;
-      int slot;
-      try {
-         slot = in.readByte() & 0xFF;
-      } catch (java.io.EOFException e) {
-         slot = 0;
+      if (this.face < 0 || this.face > 5) {
+         throw new IOException("face out of range: " + this.face);
+      }
+      this.blockId = Packet.readBlockId(in);
+      int slot = in.readByte() & 0xFF;
+      if (slot > Packet.HOTBAR_SLOTS - 1) {
+         throw new IOException("slot out of range: " + slot);
       }
       this.slot = slot;
    }

@@ -425,8 +425,11 @@ public class GameServer implements LevelListener {
              continue;
           }
           int below = cy > 0 ? this.level.getTile(cx, cy - 1, cz) : 1;
-          if (below == 0 || Blocks.isFluid(below) || below == Blocks.SNOW_LAYER_ID
-             || below == Blocks.LILYPAD_ID) {
+           int belowData = below == Blocks.SNOW_LAYER_ID
+              ? this.level.getData(cx, cy - 1, cz) : 0;
+           if (below == 0 || Blocks.isFluid(below)
+              || (below == Blocks.SNOW_LAYER_ID && (belowData & 7) < 3)
+              || below == Blocks.LILYPAD_ID) {
              this.spawnFalling(cx, cy, cz, id);
              queue.add(new long[]{cx + 1, cy, cz});
              queue.add(new long[]{cx - 1, cy, cz});
@@ -641,6 +644,7 @@ public class GameServer implements LevelListener {
             h.entityId = z.id;
             h.hp = z.hp;
             h.xd = z.xd;
+            h.yd = z.yd;
             h.zd = z.zd;
             this.conn.sendToClient(h);
          }
@@ -681,6 +685,9 @@ public class GameServer implements LevelListener {
       if (p.face == 3) z++;
       if (p.face == 4) x--;
       if (p.face == 5) x++;
+      if (y < 0 || y >= this.level.depth) {
+         return;
+      }
 
       Block placing = Blocks.byId(p.blockId);
       int target = this.level.getTile(x, y, z);

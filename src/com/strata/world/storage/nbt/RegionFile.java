@@ -9,7 +9,9 @@ import java.io.RandomAccessFile;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
 
-public class RegionFile {
+import com.strata.core.Log;
+
+public class RegionFile implements AutoCloseable {
    private static final int SECTOR = 4096;
    private static final int HEADER_SECTORS = 2;
    private static final byte VERSION_ZLIB = 2;
@@ -76,7 +78,7 @@ public class RegionFile {
       }
       this.file.seek((long)sector * SECTOR);
       int length = this.file.readInt();
-      if (length <= 0 || length > count * SECTOR) {
+      if (length <= 0 || length + 4 > count * SECTOR) {
          throw new IOException("Corrupt region chunk length " + length);
       }
       int version = this.file.readByte() & 0xFF;
@@ -90,12 +92,18 @@ public class RegionFile {
       throw new IOException("Unknown region chunk version " + version);
    }
 
+   private static final int MAX_INFLATED = 16 * 1024 * 1024;
+
    private static byte[] inflate(InputStream in, int hint) throws IOException {
       ByteArrayOutputStream out = new ByteArrayOutputStream(hint);
       byte[] buf = new byte[8192];
       int n;
       while ((n = in.read(buf)) > 0) {
          out.write(buf, 0, n);
+         if (out.size() > MAX_INFLATED) {
+            throw new IOException("inflated chunk exceeds " + MAX_INFLATED
+               + " bytes (decompression bomb?)");
+         }
       }
       in.close();
       return out.toByteArray();
@@ -109,16 +117,25 @@ public class RegionFile {
       byte[] data = deflated.toByteArray();
       int total = data.length + 5; 
       int sectors = (total + SECTOR - 1) / SECTOR;
+      if (sectors > 255) {
+         throw new IOException("chunk " + lx + "," + lz + " too large to store ("
+            + sectors + " sectors > 255) in " + this.path.getName());
+      }
       int idx = index(lx, lz);
       int old = this.offsets[idx];
       int oldSector = old >> 8;
       int oldCount = old & 0xFF;
       int sector;
-      if (old != 0 && oldCount >= sectors) {
+      if (old != 0 && oldCount >= sectors && oldSector >= HEADER_SECTORS) {
          sector = oldSector; 
          this.wastedSectors += oldCount - sectors; 
       } else {
          if (old != 0) {
+            if (oldSector < HEADER_SECTORS) {
+               Log.warn("region", "corrupt offset for chunk " + lx + "," + lz
+                  + " in " + this.path.getName() + " (sector " + oldSector
+                  + ") — appending fresh, orphaned allocation counted as waste");
+            }
             this.wastedSectors += oldCount; 
          }
          sector = (int)((this.file.length() + SECTOR - 1) / SECTOR); 
@@ -199,11 +216,13 @@ public class RegionFile {
       this.file.close();
       File tmp = new File(this.path.getAbsolutePath() + ".compact-tmp");
       boolean renamed = false;
+      RandomAccessFile tmpFile = null;
       try {
          if (tmp.exists() && !tmp.delete()) {
             throw new IOException("cannot clear compact tmp " + tmp);
          }
-         this.file = new RandomAccessFile(tmp, "rw");
+         tmpFile = new RandomAccessFile(tmp, "rw");
+         this.file = tmpFile;
          for (int i = 0; i < 1024; i++) {
             this.file.writeInt(0);
          }
@@ -220,12 +239,19 @@ public class RegionFile {
             }
          }
          this.file.close();
+         tmpFile = null; 
          if (!tmp.renameTo(this.path)) {
             throw new IOException("compact rename failed for " + this.path);
          }
          renamed = true;
          this.file = new RandomAccessFile(this.path, "rw");
       } finally {
+         if (tmpFile != null) {
+            try {
+               tmpFile.close();
+            } catch (IOException ignore) {
+            }
+         }
          if (!renamed) {
             tmp.delete();
             this.file = new RandomAccessFile(this.path, "rw");
@@ -248,6 +274,10 @@ public class RegionFile {
       byte[] data = deflated.toByteArray();
       int total = data.length + 5;
       int sectors = (total + SECTOR - 1) / SECTOR;
+      if (sectors > 255) {
+         throw new IOException("chunk " + lx + "," + lz + " too large to compact ("
+            + sectors + " sectors > 255) in " + this.path.getName());
+      }
       int idx = index(lx, lz);
       int sector = (int)((this.file.length() + SECTOR - 1) / SECTOR);
       if (sector < HEADER_SECTORS) {

@@ -62,10 +62,16 @@ public class InputState extends Packet {
       this.breaking = (flags & 256) != 0;
       this.yaw = in.readFloat();
       this.pitch = in.readFloat();
-      this.breakX = in.readInt();
-      this.breakY = in.readInt();
-      this.breakZ = in.readInt();
+      this.breakX = Packet.readCoord(in);
+      this.breakY = Packet.readCoord(in);
+      this.breakZ = Packet.readCoord(in);
       this.breakFace = in.readByte();
+      if (this.breakFace < 0 || this.breakFace > 5) {
+         throw new IOException("break face out of range: " + this.breakFace);
+      }
+      if (!Float.isFinite(this.yaw) || !Float.isFinite(this.pitch)) {
+         throw new IOException("non-finite input look");
+      }
    }
 }
 

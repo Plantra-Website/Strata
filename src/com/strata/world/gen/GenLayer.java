@@ -3,7 +3,7 @@ package com.strata.world.gen;
 public abstract class GenLayer {
    private long worldSeed;
    protected GenLayer parent;
-   private long chunkSeed;
+   private final ThreadLocal<Long> chunkSeed = new ThreadLocal<>();
    private long baseSeed;
 
    public static GenLayer[] buildStack(long seed) {
@@ -77,24 +77,27 @@ public abstract class GenLayer {
    }
 
    public void initCellSeed(long x, long z) {
-      this.chunkSeed = this.worldSeed;
-      this.chunkSeed *= this.chunkSeed * 6364136223846793005L + 1442695040888963407L;
-      this.chunkSeed += x;
-      this.chunkSeed *= this.chunkSeed * 6364136223846793005L + 1442695040888963407L;
-      this.chunkSeed += z;
-      this.chunkSeed *= this.chunkSeed * 6364136223846793005L + 1442695040888963407L;
-      this.chunkSeed += x;
-      this.chunkSeed *= this.chunkSeed * 6364136223846793005L + 1442695040888963407L;
-      this.chunkSeed += z;
+      long s = this.worldSeed;
+      s *= s * 6364136223846793005L + 1442695040888963407L;
+      s += x;
+      s *= s * 6364136223846793005L + 1442695040888963407L;
+      s += z;
+      s *= s * 6364136223846793005L + 1442695040888963407L;
+      s += x;
+      s *= s * 6364136223846793005L + 1442695040888963407L;
+      s += z;
+      this.chunkSeed.set(s);
    }
 
    protected int nextInt(int n) {
-      int r = (int)((this.chunkSeed >> 24) % (long)n);
+      long s = this.chunkSeed.get();
+      int r = (int)((s >> 24) % (long)n);
       if (r < 0) {
          r += n;
       }
-      this.chunkSeed *= this.chunkSeed * 6364136223846793005L + 1442695040888963407L;
-      this.chunkSeed += this.worldSeed;
+      s *= s * 6364136223846793005L + 1442695040888963407L;
+      s += this.worldSeed;
+      this.chunkSeed.set(s);
       return r;
    }
 

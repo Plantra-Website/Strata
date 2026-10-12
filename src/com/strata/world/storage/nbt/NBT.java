@@ -92,6 +92,8 @@ public final class NBT {
       writeCompoundPayload(root, out);
    }
 
+   private static final int MAX_READ_DEPTH = 128;
+
    public static CompoundTag readRoot(DataInput in) throws IOException {
       int type = in.readByte() & 0xFF;
       if (type != 10) {
@@ -99,7 +101,7 @@ public final class NBT {
       }
       in.readUTF(); 
       CompoundTag root = new CompoundTag();
-      readCompoundPayload(root, in);
+      readCompoundPayload(root, in, 0);
       return root;
    }
 
@@ -154,18 +156,21 @@ public final class NBT {
       out.writeByte(0); 
    }
 
-   private static void readCompoundPayload(CompoundTag tag, DataInput in) throws IOException {
+   private static void readCompoundPayload(CompoundTag tag, DataInput in, int depth) throws IOException {
       while (true) {
          int type = in.readByte() & 0xFF;
          if (type == 0) {
             return;
          }
          String name = in.readUTF();
-         tag.value.put(name, readPayload(type, in));
+         tag.value.put(name, readPayload(type, in, depth));
       }
    }
 
-   private static Tag readPayload(int type, DataInput in) throws IOException {
+   private static Tag readPayload(int type, DataInput in, int depth) throws IOException {
+      if (depth > MAX_READ_DEPTH) {
+         throw new IOException("NBT nesting too deep (>" + MAX_READ_DEPTH + ")");
+      }
       switch (type) {
          case 1: return new ByteTag(in.readByte());
          case 2: return new ShortTag(in.readShort());
@@ -191,13 +196,13 @@ public final class NBT {
             }
             ListTag list = new ListTag((byte)elem);
             for (int i = 0; i < len; i++) {
-               list.value.add(readPayload(elem, in));
+               list.value.add(readPayload(elem, in, depth + 1));
             }
             return list;
          }
          case 10: {
             CompoundTag c = new CompoundTag();
-            readCompoundPayload(c, in);
+            readCompoundPayload(c, in, depth + 1);
             return c;
          }
          case 11: {
