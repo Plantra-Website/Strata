@@ -21,6 +21,11 @@ working-storage section.
 01 ws-pix pic x(921600).
 01 ws-bytes redefines ws-pix pic 9(2) comp-5
    occurs 921600 times.
+01 prev-frame pic x(921600).
+01 prev-bytes redefines prev-frame pic 9(2) comp-5
+   occurs 921600 times.
+01 first-frame pic 9 value 1.
+01 row-dirty pic 9 value 1.
 01 pix-count pic 9(9) comp-5 value 0.
 01 raw-top pic 9(9) comp-5 value 0.
 01 raw-bot pic 9(9) comp-5 value 0.
@@ -234,6 +239,7 @@ main-section.
                                 end-if
                             end-if
                             display esc-char "[?2026l" with no advancing
+                            move 0 to first-frame
                             add 1 to frames-done
                             if once-flag = 1
                                 move 1 to exit-flag
@@ -625,14 +631,47 @@ render-ascii.
             compute rowbase-bot = by-val * w-val * 3
             move rowbase-bot to raw-bot
         end-if
+        if first-frame = 1
+            move 1 to row-dirty
+        else
+            move 0 to row-dirty
+            perform varying px from 0 by 1 until px >= dcols
+                compute raw-top = rowbase-top + px * step3
+                if ws-bytes(raw-top + 1) not = prev-bytes(raw-top + 1)
+                or ws-bytes(raw-top + 2) not = prev-bytes(raw-top + 2)
+                or ws-bytes(raw-top + 3) not = prev-bytes(raw-top + 3)
+                    move 1 to row-dirty
+                    exit perform
+                end-if
+                if by-val < h-val
+                    compute raw-bot = rowbase-bot + px * step3
+                    if ws-bytes(raw-bot + 1) not = prev-bytes(raw-bot + 1)
+                    or ws-bytes(raw-bot + 2) not = prev-bytes(raw-bot + 2)
+                    or ws-bytes(raw-bot + 3) not = prev-bytes(raw-bot + 3)
+                        move 1 to row-dirty
+                        exit perform
+                    end-if
+                end-if
+            end-perform
+        end-if
+        if row-dirty = 0
+            display ""
+        else
+        move rowbase-top to raw-top
         perform varying px from 0 by 1 until px >= dcols
             move ws-bytes(raw-top + 1) to rv
             move ws-bytes(raw-top + 2) to gv
             move ws-bytes(raw-top + 3) to bv
+            move rv to prev-bytes(raw-top + 1)
+            move gv to prev-bytes(raw-top + 2)
+            move bv to prev-bytes(raw-top + 3)
             if by-val < h-val
                 move ws-bytes(raw-bot + 1) to rb
                 move ws-bytes(raw-bot + 2) to gb
                 move ws-bytes(raw-bot + 3) to bb
+                move rb to prev-bytes(raw-bot + 1)
+                move gb to prev-bytes(raw-bot + 2)
+                move bb to prev-bytes(raw-bot + 3)
             else
                 move 0 to rb
                 move 0 to gb
@@ -679,6 +718,8 @@ render-ascii.
         end-string
         compute line-len = ptr - 1
         display line-buf(1:line-len)
+        end-if
+        end-if
     end-perform.
 enable-windows-console.
     *> Static C helper (winconsole.c, linked in, -fstatic-call): direct
@@ -697,14 +738,50 @@ render-truecolor.
             compute rowbase-bot = by-val * w-val * 3
             move rowbase-bot to raw-bot
         end-if
+        *> Row diff: identical sampled source bytes mean the screen row
+        *> is already right — emit just a newline to advance. First frame
+        *> always renders (no previous to match).
+        if first-frame = 1
+            move 1 to row-dirty
+        else
+            move 0 to row-dirty
+            perform varying px from 0 by 1 until px >= dcols
+                compute raw-top = rowbase-top + px * step3
+                if ws-bytes(raw-top + 1) not = prev-bytes(raw-top + 1)
+                or ws-bytes(raw-top + 2) not = prev-bytes(raw-top + 2)
+                or ws-bytes(raw-top + 3) not = prev-bytes(raw-top + 3)
+                    move 1 to row-dirty
+                    exit perform
+                end-if
+                if by-val < h-val
+                    compute raw-bot = rowbase-bot + px * step3
+                    if ws-bytes(raw-bot + 1) not = prev-bytes(raw-bot + 1)
+                    or ws-bytes(raw-bot + 2) not = prev-bytes(raw-bot + 2)
+                    or ws-bytes(raw-bot + 3) not = prev-bytes(raw-bot + 3)
+                        move 1 to row-dirty
+                        exit perform
+                    end-if
+                end-if
+            end-perform
+        end-if
+        if row-dirty = 0
+            display ""
+        else
+        move rowbase-top to raw-top
         perform varying px from 0 by 1 until px >= dcols
             move ws-bytes(raw-top + 1) to rv
             move ws-bytes(raw-top + 2) to gv
             move ws-bytes(raw-top + 3) to bv
+            move rv to prev-bytes(raw-top + 1)
+            move gv to prev-bytes(raw-top + 2)
+            move bv to prev-bytes(raw-top + 3)
             if by-val < h-val
                 move ws-bytes(raw-bot + 1) to rb
                 move ws-bytes(raw-bot + 2) to gb
                 move ws-bytes(raw-bot + 3) to bb
+                move rb to prev-bytes(raw-bot + 1)
+                move gb to prev-bytes(raw-bot + 2)
+                move bb to prev-bytes(raw-bot + 3)
             else
                 move 0 to rb
                 move 0 to gb
@@ -747,6 +824,7 @@ render-truecolor.
         end-string
         compute line-len = ptr - 1
         display line-buf(1:line-len)
+        end-if
     end-perform.
 render-ansi16.
     *> Fastest mode: half-blocks quantized to the 256-color palette
@@ -764,14 +842,47 @@ render-ansi16.
             compute rowbase-bot = by-val * w-val * 3
             move rowbase-bot to raw-bot
         end-if
+        if first-frame = 1
+            move 1 to row-dirty
+        else
+            move 0 to row-dirty
+            perform varying px from 0 by 1 until px >= dcols
+                compute raw-top = rowbase-top + px * step3
+                if ws-bytes(raw-top + 1) not = prev-bytes(raw-top + 1)
+                or ws-bytes(raw-top + 2) not = prev-bytes(raw-top + 2)
+                or ws-bytes(raw-top + 3) not = prev-bytes(raw-top + 3)
+                    move 1 to row-dirty
+                    exit perform
+                end-if
+                if by-val < h-val
+                    compute raw-bot = rowbase-bot + px * step3
+                    if ws-bytes(raw-bot + 1) not = prev-bytes(raw-bot + 1)
+                    or ws-bytes(raw-bot + 2) not = prev-bytes(raw-bot + 2)
+                    or ws-bytes(raw-bot + 3) not = prev-bytes(raw-bot + 3)
+                        move 1 to row-dirty
+                        exit perform
+                    end-if
+                end-if
+            end-perform
+        end-if
+        if row-dirty = 0
+            display ""
+        else
+        move rowbase-top to raw-top
         perform varying px from 0 by 1 until px >= dcols
             move ws-bytes(raw-top + 1) to rv
             move ws-bytes(raw-top + 2) to gv
             move ws-bytes(raw-top + 3) to bv
+            move rv to prev-bytes(raw-top + 1)
+            move gv to prev-bytes(raw-top + 2)
+            move bv to prev-bytes(raw-top + 3)
             if by-val < h-val
                 move ws-bytes(raw-bot + 1) to rb
                 move ws-bytes(raw-bot + 2) to gb
                 move ws-bytes(raw-bot + 3) to bb
+                move rb to prev-bytes(raw-bot + 1)
+                move gb to prev-bytes(raw-bot + 2)
+                move bb to prev-bytes(raw-bot + 3)
             else
                 move 0 to rb
                 move 0 to gb
@@ -871,4 +982,5 @@ render-ansi16.
         end-string
         compute line-len = ptr - 1
         display line-buf(1:line-len)
+        end-if
     end-perform.
