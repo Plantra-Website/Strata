@@ -68,6 +68,10 @@ working-storage section.
 01 nsec pic 9(18) comp-5 value 33333333.
 01 esc-char pic x value x"1B".
 01 block-char pic x(3) value x"E29680".
+*> Clean diff rows emit exactly this (proven single 0x0A byte): an empty
+*> DISPLAY is spacing-dependent (mac emits space+newline, others may emit
+*> nothing and desync every row below it).
+01 row-advance pic x value x"0A".
 01 ramp-str pic x(70) value " .'`^"",:;Il!i><~+_-?][}{1)(|\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$".
 01 ramp-max pic 9(9) comp-5 value 69.
 01 bright-f pic 9v9(6) value 0.
@@ -655,7 +659,7 @@ render-ascii.
             end-perform
         end-if
         if row-dirty = 0
-            display ""
+            display row-advance with no advancing
         else
         move rowbase-top to raw-top
         perform varying px from 0 by 1 until px >= dcols
@@ -765,7 +769,7 @@ render-truecolor.
             end-perform
         end-if
         if row-dirty = 0
-            display ""
+            display row-advance with no advancing
         else
         move rowbase-top to raw-top
         perform varying px from 0 by 1 until px >= dcols
@@ -866,7 +870,7 @@ render-ansi16.
             end-perform
         end-if
         if row-dirty = 0
-            display ""
+            display row-advance with no advancing
         else
         move rowbase-top to raw-top
         perform varying px from 0 by 1 until px >= dcols
