@@ -219,6 +219,10 @@ main-section.
                         else
                             move curr-counter to last-counter
                             display esc-char "[H" with no advancing
+                            *> Synchronized output: capable terminals buffer
+                            *> to the end marker and present the frame
+                            *> atomically (no sweep); others ignore both.
+                            display esc-char "[?2026h" with no advancing
                             if function trim(mode-val) = "ASCII"
                                 or function trim(mode-val) = "MONO"
                                 perform render-ascii
@@ -229,6 +233,7 @@ main-section.
                                     perform render-truecolor
                                 end-if
                             end-if
+                            display esc-char "[?2026l" with no advancing
                             add 1 to frames-done
                             if once-flag = 1
                                 move 1 to exit-flag
