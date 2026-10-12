@@ -67,11 +67,6 @@ working-storage section.
 01 ramp-max pic 9(9) comp-5 value 69.
 01 bright-f pic 9v9(6) value 0.
 01 win-os-name pic x(64) value spaces.
-01 std-handle-id pic s9(9) comp-5 value -11.
-01 console-handle pic 9(18) comp-5 value 0.
-01 console-mode pic 9(9) comp-5 value 0.
-01 mode-bit pic 9 comp-5 value 0.
-01 codepage-num pic 9(9) comp-5 value 65001.
 01 gamma-tab.
    05 gidx occurs 256 times pic 9(2) comp-5 value 0.
 01 fgf-tab.
@@ -681,25 +676,9 @@ render-ascii.
         display line-buf(1:line-len)
     end-perform.
 enable-windows-console.
-    *> GetStdHandle(-11) -> stdout handle; OR 0x0004
-    *> (ENABLE_VIRTUAL_TERMINAL_PROCESSING) into its mode preserving the
-    *> rest; force UTF-8 output codepage. No ON EXCEPTION needed: the
-    *> caller only performs this on Windows_NT, where kernel32 always
-    *> resolves these three.
-    call "GetStdHandle" using by value std-handle-id
-        returning console-handle
-    end-call
-    call "GetConsoleMode" using by value console-handle console-mode
-    end-call
-    compute mode-bit = function mod(function integer(console-mode / 4),
-        2)
-    if mode-bit = 0
-        compute console-mode = console-mode + 4
-    end-if
-    call "SetConsoleMode" using by value console-handle
-        by value console-mode
-    end-call
-    call "SetConsoleOutputCP" using by value codepage-num
+    *> Static C helper (winconsole.c, linked in, -fstatic-call): direct
+    *> call, no runtime module resolution involved.
+    call "enable_vt"
     end-call.
 render-truecolor.
     perform varying py2 from 0 by 1 until py2 >= drows

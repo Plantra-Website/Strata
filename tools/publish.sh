@@ -42,7 +42,7 @@ if [ -n "$HAD_GIT" ]; then
 fi
 cp -r stripped/src stripped/test res lib natives build.sh build.bat options.txt publish/
 mkdir -p publish/src/com/strata/terminal
-cp src/com/strata/terminal/viewer.cbl src/com/strata/terminal/README.md \
+cp src/com/strata/terminal/viewer.cbl src/com/strata/terminal/winconsole.c src/com/strata/terminal/README.md \
   publish/src/com/strata/terminal/
 cp pack/ATTRIBUTION-Pixel-Perfection-Fidelity.txt publish/ATTRIBUTION.md
 rm -rf publish/tools publish/TODO.md

@@ -14,6 +14,27 @@ cobc -x -F -O2 -o viewer viewer.cbl
 ./viewer --help
 ```
 
+Windows (`viewer.exe`, run in Windows Terminal for colors; legacy
+conhost additionally needs the `winconsole.c` helper below):
+
+```sh
+cobc -x -F -O2 -fstatic-call -o viewer.exe viewer.cbl
+```
+
+`winconsole.c` enables VT escapes + UTF-8 on legacy conhost via a static
+`enable_vt` call (plain `CALL` cannot reach kernel32: the runtime only
+resolves COBOL programs and loadable modules, never the exe's own
+imports). It must ride in as a real library — `cobc` reads positional
+inputs as COBOL source:
+
+```sh
+gcc -O2 -c winconsole.c -o winconsole.obj
+ar cq libwinconsole.a winconsole.obj
+cobc -x -F -O2 -fstatic-call -o viewer.exe viewer.cbl -L. -lwinconsole
+```
+
+Skip it if you only use Windows Terminal (VT works there natively).
+
 No libraries beyond libcob itself. To run the game with the tap, see the
 main README (`--terminal [WxH[:FPS]]`) and point the viewer at the same
 size:
