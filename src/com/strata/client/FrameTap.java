@@ -37,6 +37,8 @@ public class FrameTap {
    private boolean dead = false;
    private int lastSrcW = -1;
    private int lastSrcH = -1;
+   private int failures = 0;
+   private static final int MAX_FAILURES = 600;
 
    public FrameTap(int tw, int th, int fps) {
       this.tw = tw;
@@ -150,19 +152,47 @@ public class FrameTap {
             }
          }
          File tmp = new File(PATH + ".tmp");
-         FileOutputStream fos = new FileOutputStream(tmp);
-         try {
-            fos.write(this.out);
-         } finally {
-            fos.close();
+         if (!publishBytes(tmp, new File(PATH), this.out)) {
+            if (++this.failures >= MAX_FAILURES) {
+               Log.warn("term", "tap failed " + MAX_FAILURES + "x running, disabled");
+               this.dead = true;
+            } else if (this.failures == 1 || this.failures % 150 == 0) {
+               Log.warn("term", "tap publish blocked (" + this.failures + "x), retrying");
+            }
+            return;
          }
-         Files.move(tmp.toPath(), new File(PATH).toPath(),
-            StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+         this.failures = 0;
          this.counter++;
       } catch (Throwable t) {
          Log.warn("term", "tap failed, disabled: " + t.getMessage());
          this.dead = true;
       }
+   }
+
+   static boolean publishBytes(File tmp, File dst, byte[] data) {
+      for (int attempt = 0; attempt < 3; attempt++) {
+         if (attempt > 0) {
+            try {
+               Thread.sleep(5L);
+            } catch (InterruptedException ie) {
+               Thread.currentThread().interrupt();
+               return false;
+            }
+         }
+         try {
+            FileOutputStream fos = new FileOutputStream(tmp);
+            try {
+               fos.write(data);
+            } finally {
+               fos.close();
+            }
+            Files.move(tmp.toPath(), dst.toPath(),
+               StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            return true;
+         } catch (java.io.IOException e) {
+         }
+      }
+      return false;
    }
 
    public void close() {

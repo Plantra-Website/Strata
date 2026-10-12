@@ -42,6 +42,25 @@ public class FrameTapTest {
          check(FrameTap.PATH.equals("/tmp/strata-frame.bin"), "unix tap path stays /tmp");
       }
 
+      java.io.File tmp = new java.io.File("taptest.bin.tmp");
+      java.io.File dst = new java.io.File("taptest.bin");
+      byte[] payload = new byte[256];
+      for (int b = 0; b < payload.length; b++) {
+         payload[b] = (byte) b;
+      }
+      check(FrameTap.publishBytes(tmp, dst, payload), "publish succeeds");
+      check(!tmp.exists(), "tmp renamed away");
+      try {
+         byte[] back = java.nio.file.Files.readAllBytes(dst.toPath());
+         check(java.util.Arrays.equals(payload, back), "published bytes exact");
+      } catch (java.io.IOException e) {
+         check(false, "readback threw: " + e.getMessage());
+      }
+      check(FrameTap.publishBytes(tmp, dst, payload), "republish over existing succeeds");
+      check(!tmp.exists() && dst.exists(), "republish leaves one file");
+      check(tmp.delete() || !tmp.exists(), "tmp cleanup");
+      check(dst.delete(), "dst cleanup");
+
       if (failures > 0) { System.out.println(failures + " FAILURES"); System.exit(1); }
       System.out.println("frametap ok");
    }
