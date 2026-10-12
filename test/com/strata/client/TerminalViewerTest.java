@@ -51,6 +51,12 @@ public class TerminalViewerTest {
       check(cmd.equals(Arrays.asList(fakeBin.getAbsolutePath(),
          "320", "240", "--mode", "ansi", "--scale", "2",
          "--file", FrameTap.PATH)), "argv carries size, flags, tap path");
+      check(TerminalViewer.viewScale(Arrays.asList()) == 1, "default scale 1");
+      check(TerminalViewer.viewScale(Arrays.asList("--scale", "2")) == 2, "scale 2");
+      check(TerminalViewer.viewScale(Arrays.asList("--mode", "ansi", "--scale", "4")) == 4, "scale among flags");
+      check(TerminalViewer.viewScale(Arrays.asList("--scale", "2", "--scale", "3")) == 3, "last scale wins");
+      check(TerminalViewer.viewScale(Arrays.asList("--scale", "99")) == 1, "bad scale ignored");
+      check(TerminalViewer.viewScale(Arrays.asList("--scale")) == 1, "dangling scale ignored");
 
       if (failures > 0) { System.out.println(failures + " FAILURES"); System.exit(1); }
       System.out.println("terminalviewer ok");

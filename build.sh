@@ -200,6 +200,14 @@ case "${1:-build}" in
     else
       echo "note: no $PLAT viewer binary (viewer-$PLAT), jar ships without the terminal viewer" >&2
     fi
+    # Pascal input bridge rides along the same way, mac-arm64 only for now
+    # (native FPC build; cross Pascal later). Same warn-never-fail rule.
+    if [ "$PLAT" = "mac-arm64" ] && [ -x terminput ]; then
+      mkdir -p dist/work/terminal
+      cp terminput dist/work/terminal/terminput
+    elif [ "$PLAT" = "mac-arm64" ]; then
+      echo "note: no ./terminput binary, jar ships without the terminal input bridge" >&2
+    fi
     find dist/work -name '.DS_Store' -delete
     rm -rf dist/work/__MACOSX
     mkdir -p dist/work/META-INF

@@ -68,6 +68,13 @@ each jar).
   render; errors additionally stay on stderr. On Windows the frame and
   log live under `%TEMP%` instead, and the launcher hands that path to
   the viewer via `--file`, so no manual path juggling is needed.
+  The tap also auto-launches the Pascal input bridge (`terminput`,
+  same resolution rules as the viewer): terminal keys/mouse merge with
+  window input, so the game stays playable with the window in the
+  background.   Hotbar keys, look, buttons, wheel, quit, and inventory clicks all
+  work from the terminal (clicks map cells back onto window pixels via
+  the tap size + forwarded `--scale`, so auto-launched viewers always
+  agree; a manual `--scale` the game doesn't know about misplaces them).
 
 ## Controls
 

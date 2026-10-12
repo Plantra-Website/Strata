@@ -662,6 +662,9 @@ render-ascii.
             display row-advance with no advancing
         else
         move rowbase-top to raw-top
+        if by-val < h-val
+            move rowbase-bot to raw-bot
+        end-if
         perform varying px from 0 by 1 until px >= dcols
             move ws-bytes(raw-top + 1) to rv
             move ws-bytes(raw-top + 2) to gv
@@ -772,6 +775,9 @@ render-truecolor.
             display row-advance with no advancing
         else
         move rowbase-top to raw-top
+        if by-val < h-val
+            move rowbase-bot to raw-bot
+        end-if
         perform varying px from 0 by 1 until px >= dcols
             move ws-bytes(raw-top + 1) to rv
             move ws-bytes(raw-top + 2) to gv
@@ -873,6 +879,9 @@ render-ansi16.
             display row-advance with no advancing
         else
         move rowbase-top to raw-top
+        if by-val < h-val
+            move rowbase-bot to raw-bot
+        end-if
         perform varying px from 0 by 1 until px >= dcols
             move ws-bytes(raw-top + 1) to rv
             move ws-bytes(raw-top + 2) to gv
@@ -892,8 +901,6 @@ render-ansi16.
                 move 0 to gb
                 move 0 to bb
             end-if
-            *> 256-color mapping: grey ramp for flat (low-spread)
-            *> content, 6x6x6 cube otherwise.
             move rv to mx
             if gv > mx
                 move gv to mx

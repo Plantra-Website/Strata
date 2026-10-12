@@ -122,10 +122,40 @@ per-statement floor). In `--once` timings, ~15ms is one-shot startup.
 
 ## Frame format (for other viewers)
 
-`/tmp/strata-frame.bin` = `%08d` ASCII counter + `W*H*3` bytes RGB,
+/tmp/strata-frame.bin = `%08d` ASCII counter + `W*H*3` bytes RGB,
 top-down rows, rewritten atomically (~15fps default, configurable via
 game `--terminal WxH:FPS`, 1..60). Deleted on game exit. Counter lets a
 viewer skip unchanged frames.
+
+## Input bridge (`terminput`, Pascal)
+
+`terminput <inputfile> <framefile>` owns stdin (raw + SGR mouse tracking
+on Unix; console input mode on Windows) and publishes polled snapshots:
+
+```text
+SEQ 123
+KEYS W SPACE UP
+MOUSE 45 12 1
+WHEEL 7
+```
+
+- `SEQ` bumps on every state change (game skips same-seq snapshots).
+- `KEYS` are LWJGL names (`Keyboard.getKeyIndex` resolves them).
+- `MOUSE` is cell coords + button bitmask (1=left 2=right 4=middle).
+  The game maps cells onto window pixels itself (it knows the tap size,
+  live window size, and forwarded `--scale`), so resizes just work;
+  clicks outside the frame harmlessly miss every slot.
+- `WHEEL` is a monotonic accumulator (game diffs it; resyncs on reset).
+- Snapshots rewrite atomically on change + 2 Hz heartbeat; the game
+  ignores snapshots older than 2s, so a dead bridge degrades to window
+  input instead of wedging keys.
+- Unix keys have no release events: a press holds 250 ms past its last
+  repeat byte (terminals autorepeat). Ctrl-C exits cleanly (console
+  restored, keys-up written); so does the game deleting `<framefile>`.
+- Build (macOS, bundle FPC): `fpc -o terminput terminput.pas`.
+  Windows: stock FPC install, `fpc terminput.pas` (WinAPI branch is
+  review-only there so far — report issues).
+- `--selftest` runs the parser vectors headlessly (exit 0 = green).
 
 ## Troubleshooting
 

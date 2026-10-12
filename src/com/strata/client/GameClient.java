@@ -95,6 +95,31 @@ public class GameClient implements Runnable {
    private int fps = 0;
    private boolean leftDown = false;
    private boolean prevResetDown = false;
+   private final TerminalInput terminalInput = new TerminalInput();
+   private boolean prevTermLMB = false;
+   private boolean prevTermRMB = false;
+   private int terminalScale = 1;
+
+   public void setTerminalScale(int scale) {
+      if (scale >= 1 && scale <= 8) {
+         this.terminalScale = scale;
+      }
+   }
+
+   static int[] termGuiPos(int cellX, int cellY, int winW, int winH,
+         int tapW, int tapH, int scale, int gs) {
+      if (cellX < 0 || cellY < 0 || scale < 1 || gs <= 0 || tapW <= 0 || tapH <= 0) {
+         return null;
+      }
+      int dcols = tapW / scale;
+      int drows = (tapH + 2 * scale - 1) / (2 * scale);
+      if (dcols <= 0 || drows <= 0) {
+         return null;
+      }
+      int gx = (int) (((cellX + 0.5) * winW / dcols) / gs);
+      int gy = (int) ((winH - (cellY + 0.5) * winH / drows) / gs);
+      return new int[]{gx, gy};
+   }
    private boolean lastActive = true;
    private boolean mouseReleased = false;
    private java.io.File worldDir = new java.io.File(DEFAULT_WORLD);
@@ -365,9 +390,11 @@ public class GameClient implements Runnable {
        int dbgCountdown = Config.DBG_STATUS_EVERY;
 
        try {
-          while (!Keyboard.isKeyDown(this.options.keyQuit)
-             && !Keyboard.isKeyDown(Keyboard.KEY_BACK)
-             && !Display.isCloseRequested()) {
+           while (!Keyboard.isKeyDown(this.options.keyQuit)
+              && !Keyboard.isKeyDown(Keyboard.KEY_BACK)
+              && !(this.frameTap != null && this.terminalInput.isFresh()
+                 && this.terminalInput.isDown(this.options.keyQuit))
+              && !Display.isCloseRequested()) {
              boolean active = Display.isActive();
              if (active != this.lastActive) {
                 this.lastActive = active;
@@ -430,24 +457,38 @@ public class GameClient implements Runnable {
       }
    }
 
+   private boolean keyDown(int lwjglCode) {
+      return Keyboard.isKeyDown(lwjglCode)
+         || (this.frameTap != null && this.terminalInput.isDown(lwjglCode));
+   }
+
    private InputState gatherInput() {
       InputState in = new InputState();
       in.yaw = this.player.yRot;
       in.pitch = this.player.xRot;
-      boolean resetDown = Display.isActive() && !this.inventoryOpen
-         && Keyboard.isKeyDown(this.options.keyRespawn);
+      boolean termActive = this.frameTap != null && this.terminalInput.poll();
+      boolean resetDown = (Display.isActive() && !this.inventoryOpen
+         && Keyboard.isKeyDown(this.options.keyRespawn))
+         || (termActive && !this.inventoryOpen && this.terminalInput.isDown(this.options.keyRespawn));
       in.reset = resetDown && !this.prevResetDown;
       this.prevResetDown = resetDown;
-      if (this.inventoryOpen || !Display.isActive()) {
+      if ((this.inventoryOpen || !Display.isActive()) && !termActive) {
          return in;
       }
-      in.fwd = Keyboard.isKeyDown(200) || Keyboard.isKeyDown(this.options.keyFwd);
-      in.back = Keyboard.isKeyDown(208) || Keyboard.isKeyDown(this.options.keyBack);
-      in.left = Keyboard.isKeyDown(203) || Keyboard.isKeyDown(this.options.keyLeft);
-      in.right = Keyboard.isKeyDown(205) || Keyboard.isKeyDown(this.options.keyRight);
-      in.jump = Keyboard.isKeyDown(this.options.keyJump) || Keyboard.isKeyDown(219);
-      in.up = Keyboard.isKeyDown(this.options.keyJump);
-      in.down = Keyboard.isKeyDown(this.options.keyDown) || Keyboard.isKeyDown(54);
+      if (termActive) {
+         if (this.terminalInput.isButtonDown(0)) {
+            this.leftDown = true;
+         } else if (!Mouse.isButtonDown(0)) {
+            this.leftDown = false;
+         }
+      }
+      in.fwd = this.keyDown(200) || this.keyDown(this.options.keyFwd);
+      in.back = this.keyDown(208) || this.keyDown(this.options.keyBack);
+      in.left = this.keyDown(203) || this.keyDown(this.options.keyLeft);
+      in.right = this.keyDown(205) || this.keyDown(this.options.keyRight);
+      in.jump = this.keyDown(this.options.keyJump) || this.keyDown(219);
+      in.up = this.keyDown(this.options.keyJump);
+      in.down = this.keyDown(this.options.keyDown) || this.keyDown(54);
       in.breaking = this.leftDown && this.hitResult != null && this.hitResult.entityId < 0;
       if (in.breaking) {
          in.breakX = this.hitResult.x;
@@ -632,16 +673,19 @@ public class GameClient implements Runnable {
          }
       }
       long r0 = System.nanoTime();
-      float xo = Mouse.getDX() * this.options.sensitivity;
-      float yo = Mouse.getDY() * this.options.sensitivity;
-      if (!this.inventoryOpen && Display.isActive()) {
+      float xo = (Mouse.getDX() + this.terminalInput.drainDX()) * this.options.sensitivity;
+      float yo = (Mouse.getDY() + this.terminalInput.drainDY()) * this.options.sensitivity;
+      if ((!this.inventoryOpen && Display.isActive())
+         || (!this.inventoryOpen && this.frameTap != null && this.terminalInput.isFresh())) {
          this.player.turn(xo, yo);
       }
       this.pick(a);
       long r1 = System.nanoTime();
 
-      int dWheel = Mouse.getDWheel();
-      if (dWheel != 0 && !this.inventoryOpen && Display.isActive()) {
+      int dWheel = Mouse.getDWheel() + this.terminalInput.drainWheel();
+      if (dWheel != 0 && !this.inventoryOpen
+         && (Display.isActive()
+            || (this.frameTap != null && this.terminalInput.isFresh()))) {
          if (dWheel > 0) {
             this.selectedSlot = (this.selectedSlot - 1 + 9) % 9;
          } else {
@@ -669,26 +713,66 @@ public class GameClient implements Runnable {
             }
             continue;
          }
-          if (Mouse.getEventButton() == 0) {
-             if (Mouse.getEventButtonState() && this.hitResult != null
-                && this.hitResult.entityId >= 0) {
-                AttackMob punch = new AttackMob();
-                punch.entityId = this.hitResult.entityId;
-                this.conn.sendToServer(punch);
-             }
-             this.leftDown = Mouse.getEventButtonState();
+           if (Mouse.getEventButton() == 0) {
+              if (Mouse.getEventButtonState() && this.hitResult != null
+                 && this.hitResult.entityId >= 0) {
+                 AttackMob punch = new AttackMob();
+                 punch.entityId = this.hitResult.entityId;
+                 this.conn.sendToServer(punch);
+              }
+              this.leftDown = Mouse.getEventButtonState();
+           }
+           if (Mouse.getEventButton() == 1 && Mouse.getEventButtonState() && this.hitResult != null && this.paintTile > 0) {
+             PlaceBlock place = new PlaceBlock();
+             place.x = this.hitResult.x;
+             place.y = this.hitResult.y;
+             place.z = this.hitResult.z;
+             place.face = this.hitResult.f;
+             place.blockId = this.paintTile;
+             place.slot = this.selectedSlot;
+             this.conn.sendToServer(place);
           }
-          if (Mouse.getEventButton() == 1 && Mouse.getEventButtonState() && this.hitResult != null && this.paintTile > 0) {
-            PlaceBlock place = new PlaceBlock();
-            place.x = this.hitResult.x;
-            place.y = this.hitResult.y;
-            place.z = this.hitResult.z;
-            place.face = this.hitResult.f;
-            place.blockId = this.paintTile;
-            place.slot = this.selectedSlot;
-            this.conn.sendToServer(place);
-         }
-      }
+       }
+
+       boolean termFresh = this.frameTap != null && this.terminalInput.isFresh();
+       boolean termLMB = termFresh && this.terminalInput.isButtonDown(0);
+       boolean termRMB = termFresh && this.terminalInput.isButtonDown(1);
+       if (this.inventoryOpen) {
+          if (termLMB && !this.prevTermLMB) {
+             int gs = Gui.resolveScale(this.options.guiScale, this.width, this.height);
+             int[] gp = termGuiPos(this.terminalInput.mouseCellX(), this.terminalInput.mouseCellY(),
+                this.width, this.height, this.frameTap.tapWidth(), this.frameTap.tapHeight(),
+                this.terminalScale, gs);
+             if (gp != null) {
+                int slot = this.gui.slotAt(gp[0], gp[1]);
+                if (slot >= 0) {
+                   SlotClick click = new SlotClick();
+                   click.slot = slot;
+                   this.conn.sendToServer(click);
+                }
+             }
+          }
+       }
+       if (!this.inventoryOpen) {
+          if (termLMB && !this.prevTermLMB && this.hitResult != null
+             && this.hitResult.entityId >= 0) {
+             AttackMob punch = new AttackMob();
+             punch.entityId = this.hitResult.entityId;
+             this.conn.sendToServer(punch);
+          }
+          if (termRMB && !this.prevTermRMB && this.hitResult != null && this.paintTile > 0) {
+             PlaceBlock place = new PlaceBlock();
+             place.x = this.hitResult.x;
+             place.y = this.hitResult.y;
+             place.z = this.hitResult.z;
+             place.face = this.hitResult.f;
+             place.blockId = this.paintTile;
+             place.slot = this.selectedSlot;
+             this.conn.sendToServer(place);
+          }
+       }
+       this.prevTermLMB = termLMB;
+       this.prevTermRMB = termRMB;
 
       while (Keyboard.next()) {
          if (Keyboard.getEventKeyState()) {

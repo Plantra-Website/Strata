@@ -34,18 +34,22 @@ public class Boot {
           }
       }
        client.applyImportDefaults();
+       client.setTerminalScale(TerminalViewer.viewScale(viewerArgs));
        Process viewerProc = null;
+       Process inputProc = null;
        if (client.terminalTap() != null) {
           java.io.File logFile = new java.io.File(
              new java.io.File(com.strata.client.FrameTap.PATH).getParent(), "strata-game.log");
           System.out.println("terminal tap active: game log -> " + logFile + ", viewer owns this screen");
           Log.setFile(logFile);
           viewerProc = TerminalViewer.launch(client.terminalTap(), viewerArgs);
+          inputProc = TerminalViewer.launchInput();
        }
        try {
           client.run();
        } finally {
           TerminalViewer.stop(viewerProc);
+          TerminalViewer.stop(inputProc);
           Log.closeFile();
        }
     }
