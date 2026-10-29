@@ -77,7 +77,7 @@ public class SandTest {
       File dir = new File("sandworld");
       LocalConnection conn = new LocalConnection();
       GameServer s = new GameServer(conn, dir, 31337L);
-      int x = 30, z = 30;
+      int x = 50, z = 50;
       int h = ItemTest.surface(s.level(), x, z);
       check(h > 0, "dig site found");
 

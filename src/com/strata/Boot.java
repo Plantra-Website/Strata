@@ -84,7 +84,7 @@ public class Boot {
       if (o.contains("win")) {
          return "windows-x64";
       }
-      return "linux-x64";
+      return arm ? "linux-aarch64" : "linux-x64";
    }
 
    static String[] nativeLibs(String platDir) {

@@ -8,7 +8,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CaveCarver {
    private static final int REGION = 32;
    private static final int REACH_CHUNKS = 8;
-   private final long seed;
+   private final long k;
+   private final long l;
    private final int depth;
    private final ConcurrentHashMap<Long, RegionCarves> regions = new ConcurrentHashMap<>();
 
@@ -16,7 +17,9 @@ public class CaveCarver {
    }
 
    public CaveCarver(long seed, int depth) {
-      this.seed = seed;
+      java.util.Random worldRand = new java.util.Random(seed);
+      this.k = worldRand.nextLong() / 2L * 2L + 1L;
+      this.l = worldRand.nextLong() / 2L * 2L + 1L;
       this.depth = depth;
    }
 
@@ -85,7 +88,8 @@ public class CaveCarver {
       int maxCz = rz * REGION + REGION + REACH_CHUNKS;
       for (int ccx = minCx; ccx < maxCx; ccx++) {
          for (int ccz = minCz; ccz < maxCz; ccz++) {
-            Random rand = new Random(this.seed ^ (ccx * 341873128712L + ccz * 132897987541L));
+            Random rand = new Random(this.k ^ this.l
+               ^ (ccx * 341873128712L + ccz * 132897987541L));
             int systems = rand.nextInt(rand.nextInt(rand.nextInt(40) + 1) + 1);
             if (rand.nextInt(15) != 0) {
                systems = 0;

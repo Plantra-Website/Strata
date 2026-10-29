@@ -132,7 +132,7 @@ run_tests() {
 
 case "${1:-build}" in
   build) compile; echo BUILD_OK ;;
-  run) shift; compile; echo BUILD_OK; "$JAVA_BIN" $JAVA_FLAGS -cp "out:res:$LIB" com.strata.Boot "$@" ;;
+  run) shift; compile; echo BUILD_OK; DISPLAY="${DISPLAY:-:99}" LD_LIBRARY_PATH="natives/linux-aarch64:${LD_LIBRARY_PATH:-}" "$JAVA_BIN" $JAVA_FLAGS -cp "out:res:$LIB" com.strata.Boot "$@" ;;
   test) compile out-test; echo BUILD_OK; run_tests out-test ;;
   strip)
     # Pinned python (Xcode CLT 3.9 — PATH pythons like ~/.local/bin drift

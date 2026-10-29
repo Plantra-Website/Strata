@@ -8,8 +8,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RavineCarver {
    private static final int REGION = 32;
    private static final int REACH_CHUNKS = 8;
-   private static final long STREAM_SALT = 0x5A17E5L;
-   private final long seed;
+   private final long k;
+   private final long l;
    private final int depth;
    private final ConcurrentHashMap<Long, RegionCarves> regions = new ConcurrentHashMap<>();
 
@@ -17,7 +17,9 @@ public class RavineCarver {
    }
 
    public RavineCarver(long seed, int depth) {
-      this.seed = seed;
+      java.util.Random worldRand = new java.util.Random(seed);
+      this.k = worldRand.nextLong() / 2L * 2L + 1L;
+      this.l = worldRand.nextLong() / 2L * 2L + 1L;
       this.depth = depth;
    }
 
@@ -86,7 +88,7 @@ public class RavineCarver {
       int maxCz = rz * REGION + REGION + REACH_CHUNKS;
       for (int ccx = minCx; ccx < maxCx; ccx++) {
          for (int ccz = minCz; ccz < maxCz; ccz++) {
-            Random rand = new Random(this.seed ^ STREAM_SALT
+            Random rand = new Random(this.k ^ this.l
                ^ (ccx * 341873128712L + ccz * 132897987541L));
             if (rand.nextInt(50) != 0) {
                continue;

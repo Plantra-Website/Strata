@@ -205,7 +205,7 @@ public class FlowTest {
       File dir4 = new File("flowworld4");
       LocalConnection conn4 = new LocalConnection();
       GameServer s4 = new GameServer(conn4, dir4, 7777L);
-      int ux = -504, uz = -498;
+      int ux = -520, uz = -460;
       int uy = s4.level().generator().unrestFluidY(ux, uz);
       check(uy > 0, "puncture site restless (got " + uy + ")");
       check(s4.level().getTile(ux, uy, uz) == Blocks.WATER_ID, "surface holds pre-stream");

@@ -7,6 +7,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class GenChunkFill {
    private final long seed;
    private final int depth;
+   private final long k;
+   private final long l;
    private final VanillaOctaves gen1;
    private final VanillaOctaves gen2;
    private final VanillaOctaves gen3;
@@ -45,6 +47,9 @@ public class GenChunkFill {
       this.gen6 = gen6;
       this.coarseHead = coarseHead;
       this.terrain = terrain;
+      java.util.Random worldRand = new java.util.Random(seed);
+      this.k = worldRand.nextLong() / 2L * 2L + 1L;
+      this.l = worldRand.nextLong() / 2L * 2L + 1L;
    }
 
    public int evictFar(int pcx, int pcz, int keepChunks) {
@@ -142,14 +147,12 @@ public class GenChunkFill {
 
    static final class Vein {
       final int id, size, cx, cy, cz;
-      final long seed;
-      Vein(int id, int size, int cx, int cy, int cz, long seed) {
+      Vein(int id, int size, int cx, int cy, int cz) {
          this.id = id;
          this.size = size;
          this.cx = cx;
          this.cy = cy;
          this.cz = cz;
-         this.seed = seed;
       }
    }
 
@@ -162,29 +165,32 @@ public class GenChunkFill {
          return hit;
       }
       java.util.ArrayList<Vein> veins = new java.util.ArrayList<>(82);
-      this.rollVeins(veins, ccx, ccz, Blocks.DIRT_ID, 32, 20, 0, 128, 0xD12701L, false);
-      this.rollVeins(veins, ccx, ccz, Blocks.GRAVEL_ID, 32, 10, 0, 128, 0x62A9E1L, false);
-      this.rollVeins(veins, ccx, ccz, Blocks.COAL_ID, 16, 20, 0, 128, 0xC0A101L, false);
-      this.rollVeins(veins, ccx, ccz, Blocks.IRON_ID, 8, 20, 0, 64, 0x120001L, false);
-      this.rollVeins(veins, ccx, ccz, Blocks.GOLD_ID, 8, 2, 0, 32, 0x601D01L, false);
-      this.rollVeins(veins, ccx, ccz, Blocks.REDSTONE_ORE_ID, 7, 8, 0, 16, 0x2ED501L, false);
-      this.rollVeins(veins, ccx, ccz, Blocks.DIAMOND_ID, 7, 1, 0, 16, 0xD1A401L, false);
-      this.rollVeins(veins, ccx, ccz, Blocks.LAPIS_ID, 6, 1, 0, 0, 0x1AB501L, true);
+      Random rand = new Random(this.k ^ this.l ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L));
+      this.rollVeins(veins, rand, ccx, ccz, Blocks.DIRT_ID, 32, 20, 0, 128, false);
+      this.rollVeins(veins, rand, ccx, ccz, Blocks.GRAVEL_ID, 32, 10, 0, 128, false);
+      this.rollVeins(veins, rand, ccx, ccz, Blocks.COAL_ID, 16, 20, 0, 128, false);
+      this.rollVeins(veins, rand, ccx, ccz, Blocks.IRON_ID, 8, 20, 0, 64, false);
+      this.rollVeins(veins, rand, ccx, ccz, Blocks.GOLD_ID, 8, 2, 0, 32, false);
+      this.rollVeins(veins, rand, ccx, ccz, Blocks.REDSTONE_ORE_ID, 7, 8, 0, 16, false);
+      this.rollVeins(veins, rand, ccx, ccz, Blocks.DIAMOND_ID, 7, 1, 0, 16, false);
+      this.rollVeins(veins, rand, ccx, ccz, Blocks.LAPIS_ID, 6, 1, 0, 0, true);
       this.veinCache.put(key, veins);
       return veins;
    }
 
-   private void rollVeins(java.util.ArrayList<Vein> veins, int ccx, int ccz,
-         int id, int size, int count, int yMin, int yMax, long salt, boolean triangular) {
+   private void rollVeins(java.util.ArrayList<Vein> veins, Random rand,
+         int ccx, int ccz, int id, int size, int count, int yMin, int yMax,
+         boolean triangular) {
       for (int n = 0; n < count; n++) {
-         long vs = this.seed ^ (salt + (long)n * 0x9E3779B9L)
-            ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L);
-         Random rand = new Random(vs);
          int cx = ccx * 16 + rand.nextInt(16);
          int cz = ccz * 16 + rand.nextInt(16);
-         int cy = triangular ? rand.nextInt(16) + rand.nextInt(16)
-            : yMin + rand.nextInt(yMax - yMin);
-         veins.add(new Vein(id, size, cx, cy, cz, vs ^ 0x5EED01L));
+         int cy;
+         if (triangular) {
+            cy = rand.nextInt(16) + rand.nextInt(16);
+         } else {
+            cy = yMin + rand.nextInt(yMax - yMin);
+         }
+         veins.add(new Vein(id, size, cx, cy, cz));
       }
    }
 
@@ -205,7 +211,8 @@ public class GenChunkFill {
    }
 
    private void stampVein(int ccx, int ccz, byte[] cells, Vein vein) {
-      Random rand = new Random(vein.seed);
+      Random rand = new Random((long)vein.cx * 341873128712L
+          + (long)vein.cy * 132897987541L + (long)vein.cz);
       float azimuth = rand.nextFloat() * (float)Math.PI;
       double x0 = vein.cx + Math.sin(azimuth) * vein.size / 8.0F;
       double x1 = vein.cx - Math.sin(azimuth) * vein.size / 8.0F;

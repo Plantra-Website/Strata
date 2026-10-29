@@ -2,10 +2,13 @@ package com.strata.world.gen;
 
 import com.strata.blocks.Blocks;
 
+import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class TerrainGenerator {
-   public static final long DEFAULT_SEED = 17L;
+
+
+         public static final long DEFAULT_SEED = 17L;
     public static final int SEA_LEVEL = 63;
     public static final int MAX_HEIGHT = 56;
     public static final int MIN_HEIGHT = 4;
@@ -22,8 +25,10 @@ public class TerrainGenerator {
     public static final int BIG_OAK = 5;
 
     private final long seed;
-    private final int depth;
-    private final boolean voided;
+   private final int depth;
+   private final long k;
+   private final long l;
+   private final boolean voided;
    private final VanillaOctaves gen1;
    private final VanillaOctaves gen2;
    private final VanillaOctaves gen3;
@@ -44,6 +49,9 @@ public class TerrainGenerator {
        this.seed = seed;
        this.depth = depth;
        this.voided = voided;
+       java.util.Random worldRand = new java.util.Random(seed);
+       this.k = worldRand.nextLong() / 2L * 2L + 1L;
+       this.l = worldRand.nextLong() / 2L * 2L + 1L;
        java.util.Random rand = new java.util.Random(seed);
        this.gen1 = new VanillaOctaves(rand, 16);
        this.gen2 = new VanillaOctaves(rand, 16);
@@ -143,31 +151,29 @@ public class TerrainGenerator {
 
    private final ConcurrentHashMap<Long, Spring[]> springCache = new ConcurrentHashMap<>();
 
-   private Lake makeLake(int ccx, int ccz, long salt, int liquid, boolean lowBiome) {
-      int lx = ccx * 16 + nonneg(hash2(this.seed ^ (salt + 1L), ccx, ccz), 16);
-      int lz = ccz * 16 + nonneg(hash2(this.seed ^ (salt + 2L), ccx, ccz), 16);
+   private Lake makeLake(int ccx, int ccz, Random rand, int liquid, boolean lowBiome) {
+      int lx = ccx * 16 + rand.nextInt(16);
+      int lz = ccz * 16 + rand.nextInt(16);
       int h0 = this.rawHeightAt(lx, lz);
       if (h0 < SEA_LEVEL - 4 || h0 >= this.depth - 8) {
          return null;
       }
-      if (lowBiome && !(h0 < SEA_LEVEL + 2
-         || nonneg(hash2(this.seed ^ (salt + 3L), ccx, ccz), 10) == 0)) {
+      if (lowBiome && !(h0 < SEA_LEVEL + 2 || rand.nextInt(10) == 0)) {
          return null;
       }
-      int n = 4 + nonneg(hash2(this.seed ^ (salt + 4L), ccx, ccz), 4);
+      int n = 4 + rand.nextInt(4);
       Lobe[] lobes = new Lobe[n];
       for (int i = 0; i < n; i++) {
-         long ls = salt + 10L + i;
-         double rx = (3 + nonneg(hash2(this.seed ^ (ls + 4L), ccx, ccz), 7)) / 2.0D;
-         double rz = (3 + nonneg(hash2(this.seed ^ (ls + 5L), ccx, ccz), 7)) / 2.0D;
-         double ry = (2 + nonneg(hash2(this.seed ^ (ls + 6L), ccx, ccz), 5)) / 2.0D;
+         double rx = (3 + rand.nextInt(7)) / 2.0D;
+         double rz = (3 + rand.nextInt(7)) / 2.0D;
+         double ry = (2 + rand.nextInt(5)) / 2.0D;
          int mx = (int)Math.ceil(rx) + 1;
          int mz = (int)Math.ceil(rz) + 1;
          int rxRange = 16 - 2 * mx + 1;
          int rzRange = 16 - 2 * mz + 1;
-         int ox = ccx * 16 + mx + nonneg(hash2(this.seed ^ (ls + 1L), ccx, ccz), rxRange);
-         int oz = ccz * 16 + mz + nonneg(hash2(this.seed ^ (ls + 2L), ccx, ccz), rzRange);
-         int oy = h0 - 2 + nonneg(hash2(this.seed ^ (ls + 3L), ccx, ccz), 5) - 2;
+         int ox = ccx * 16 + mx + rand.nextInt(rxRange);
+         int oz = ccz * 16 + mz + rand.nextInt(rzRange);
+         int oy = h0 - 2 + rand.nextInt(5) - 2;
          lobes[i] = new Lobe(ox, oy, oz, rx, ry, rz, liquid);
       }
       for (Lobe lobe : lobes) {
@@ -296,12 +302,13 @@ public class TerrainGenerator {
       if (hit != null) {
          return hit;
       }
+      Random rand = new Random(this.k ^ this.l ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L));
       Lake water = null, lava = null;
-      if (nonneg(hash2(this.seed ^ 0x1A0001L, ccx, ccz), 4) == 0) {
-         water = this.makeLake(ccx, ccz, 0x1A1000L, Blocks.WATER_ID, false);
+      if (rand.nextInt(4) == 0) {
+         water = this.makeLake(ccx, ccz, rand, Blocks.WATER_ID, false);
       }
-      if (nonneg(hash2(this.seed ^ 0x1B0001L, ccx, ccz), 8) == 0) {
-         lava = this.makeLake(ccx, ccz, 0x1B1000L, Blocks.LAVA_ID, true);
+      if (rand.nextInt(8) == 0) {
+         lava = this.makeLake(ccx, ccz, rand, Blocks.LAVA_ID, true);
       }
       Lake[] lakes = water == null
          ? (lava == null ? new Lake[0] : new Lake[]{lava})
@@ -364,18 +371,16 @@ public class TerrainGenerator {
          return hit;
       }
       java.util.ArrayList<Spring> out = new java.util.ArrayList<>(4);
+      Random rand = new Random(this.k ^ this.l ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L));
       if (this.depth > 8) {
          for (int i = 0; i < 50; i++) {
-            long vs = this.seed ^ 0x51A701L ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L)
-               ^ (long)i * 0x9E3779B9L;
-            java.util.Random r = new java.util.Random(vs);
-            int x = ccx * 16 + 8 + r.nextInt(16);
-            int z = ccz * 16 + 8 + r.nextInt(16);
-            int a = r.nextInt(this.depth - 8) + 8;
+            int x = ccx * 16 + 8 + rand.nextInt(16);
+            int z = ccz * 16 + 8 + rand.nextInt(16);
+            int a = rand.nextInt(this.depth - 8) + 8;
             if (a <= 0) {
                continue;
             }
-            int y = r.nextInt(a);
+            int y = rand.nextInt(a);
             if (y > 0 && y < this.depth - 1 && this.springGate(x, y, z)) {
                out.add(new Spring(x, y, z, Blocks.WATER_ID));
             }
@@ -383,20 +388,17 @@ public class TerrainGenerator {
       }
       if (this.depth > 16) {
          for (int i = 0; i < 20; i++) {
-            long vs = this.seed ^ 0x51A801L ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L)
-               ^ (long)i * 0x9E3779B9L;
-            java.util.Random r = new java.util.Random(vs);
-            int x = ccx * 16 + 8 + r.nextInt(16);
-            int z = ccz * 16 + 8 + r.nextInt(16);
-            int a = r.nextInt(this.depth - 16) + 8;
+            int x = ccx * 16 + 8 + rand.nextInt(16);
+            int z = ccz * 16 + 8 + rand.nextInt(16);
+            int a = rand.nextInt(this.depth - 16) + 8;
             if (a <= 0) {
                continue;
             }
-            int b = r.nextInt(a);
+            int b = rand.nextInt(a);
             if (b <= 0) {
                continue;
             }
-            int y = r.nextInt(b);
+            int y = rand.nextInt(b);
             if (y > 0 && y < this.depth - 1 && this.springGate(x, y, z)) {
                out.add(new Spring(x, y, z, Blocks.LAVA_ID));
             }
@@ -532,7 +534,7 @@ public class TerrainGenerator {
       return 0;
    }
 
-   public int heightAt(int x, int z) {
+    public int heightAt(int x, int z) {
       if (this.voided) {
          return 0;
       }
@@ -544,31 +546,31 @@ public class TerrainGenerator {
                && Math.abs(z - lobe.oz) <= lobe.rz + 1.0D) {
                covered = true;
                break;
-            }
-         }
+             }
+          }
          if (covered) {
             break;
-         }
-      }
-      if (!covered) {
-         return this.rawHeightAt(x, z);
-      }
-      int ccx = Math.floorDiv(x, 16);
-      int ccz = Math.floorDiv(z, 16);
-      byte[] col = this.fill.fill(ccx, ccz);
-      int lx = Math.floorMod(x, 16);
-      int lz = Math.floorMod(z, 16);
-      for (int y = this.depth - 1; y >= 0; y--) {
-         if (lakeCellFrom(lakes, x, y, z) >= 0) {
-            continue;
-         }
-         int v = col[(lx * 16 + lz) * this.depth + y] & 0xFF;
-         if (v > 0 && Blocks.isSolid(v)) {
-            return y;
-         }
-      }
-      return 0;
-   }
+          }
+       }
+       if (!covered) {
+          return this.rawHeightAt(x, z);
+       }
+       int ccx = Math.floorDiv(x, 16);
+       int ccz = Math.floorDiv(z, 16);
+       byte[] col = this.fill.fill(ccx, ccz);
+       int lx = Math.floorMod(x, 16);
+       int lz = Math.floorMod(z, 16);
+       for (int y = this.depth - 1; y >= 0; y--) {
+          if (lakeCellFrom(lakes, x, y, z) >= 0) {
+             continue;
+          }
+          int v = col[(lx * 16 + lz) * this.depth + y] & 0xFF;
+          if (v > 0 && Blocks.isSolid(v)) {
+             return y;
+          }
+       }
+       return 0;
+    }
 
      public int blockAt(int x, int y, int z, int h) {
         if (this.voided) {
@@ -584,7 +586,7 @@ public class TerrainGenerator {
               if (x == cands[i] && z == cands[i + 1]
                  && y > cands[i + 4]
                  && y <= cands[i + 4] + trunkTop(cands[i + 3], cands[i + 2],
-                    cands[i], cands[i + 1], this.seed)) {
+                    cands[i], cands[i + 1])) {
                  return logForSpecies(cands[i + 3]);
               }
            }
@@ -601,7 +603,7 @@ public class TerrainGenerator {
                return Blocks.ICE_ID;
             }
             if (lake >= 0) {
-               return lake;
+                return lake;
             }
          }
          {
@@ -686,7 +688,7 @@ public class TerrainGenerator {
              for (int[] d : dirs) {
                 if (lakeCellFrom(lakes, x + d[0], y + d[1], z + d[2]) == Blocks.LAVA_ID) {
                    if (y <= lobe.oy
-                      || nonneg(hash2(this.seed ^ (0x5AE110L + y), x, z), 2) == 0) {
+                      || new Random(this.k ^ this.l ^ y ^ ((long)x * 341873128712L + (long)z * 132897987541L)).nextInt(2) == 0) {
                       return Blocks.STONE_ID;
                    }
                    return 0;
@@ -700,6 +702,9 @@ public class TerrainGenerator {
     boolean isLakeIce(int x, int y, int z, Lake[] lakes) {
        if (lakeCellFrom(lakes, x, y, z) != Blocks.WATER_ID) {
           return false;
+       }
+       if (y <= SEA_LEVEL && GenBiomes.snowy(this.genBiomeAt(x, z))) {
+          return true;
        }
        if (lakeCellFrom(lakes, x, y + 1, z) == Blocks.WATER_ID) {
           return false;
@@ -738,6 +743,10 @@ public class TerrainGenerator {
 
     static int nonneg(long h, int mod) {
        return (int)((h & Long.MAX_VALUE) % mod);
+    }
+
+    Random columnRand(int x, int z) {
+       return new Random(this.k ^ this.l ^ ((long)x * 341873128712L + (long)z * 132897987541L));
     }
 
     private final ConcurrentHashMap<Long, Integer> trunkCache = new ConcurrentHashMap<>();
@@ -810,16 +819,17 @@ public class TerrainGenerator {
      private int trunkHeightInner(int ox, int oz, long key) {
        int th = 0;
        int species = OAK;
-       if (nonneg(hash2(this.seed, ox, oz), 256) >= 11) {
+       Random cr = columnRand(ox, oz);
+       if (cr.nextInt(256) >= 11) {
           this.trunkCache.put(key, species * 32 + th);
           return th;
        }
        int biome = this.genBiomeAt(ox, oz);
        int attempts = treeAttempts(biome);
-       if (nonneg(hash2(this.seed ^ 0xBEEFL, ox, oz), 10) == 0) {
+       if (cr.nextInt(10) == 0) {
           attempts++;
        }
-         if (attempts > 0 && nonneg(hash2(this.seed, ox, oz), 256) < attempts) {
+         if (attempts > 0 && cr.nextInt(256) < attempts) {
             species = this.pickSpecies(ox, oz, biome);
             th = this.trunkForSpecies(species, ox, oz);
             int base = this.heightAt(ox, oz);
@@ -855,28 +865,29 @@ public class TerrainGenerator {
         return th;
      }
 
-     static int trunkTop(int species, int th, int ox, int oz, long seed) {
-        if (species == SPRUCE_TALL) {
-           return th - 1;
-        }
-        if (species == SPRUCE_SHORT) {
-           return th - nonneg(hash2(seed ^ 0x7A162BL, ox, oz), 3);
-        }
-        return th;
+     int trunkTop(int species, int th, int ox, int oz) {
+       if (species == SPRUCE_TALL) {
+          return th - 1;
+       }
+       if (species == SPRUCE_SHORT) {
+          return th - columnRand(ox, oz).nextInt(3);
+       }
+       return th;
      }
 
     private int pickSpecies(int ox, int oz, int biome) {
+       Random cr = columnRand(ox, oz);
        if (biome == GenBiomes.FOREST) {
-          if (nonneg(hash2(this.seed ^ 0xF02E57L, ox, oz), 5) == 0) {
+          if (cr.nextInt(5) == 0) {
              return BIRCH;
           }
-          if (nonneg(hash2(this.seed ^ 0xB160A6L, ox, oz), 10) == 0) {
+          if (cr.nextInt(10) == 0) {
              return BIG_OAK;
           }
           return OAK;
        }
        if (biome == GenBiomes.TAIGA) {
-          if (nonneg(hash2(this.seed ^ 0x7A16AL, ox, oz), 3) == 0) {
+          if (cr.nextInt(3) == 0) {
              return SPRUCE_TALL;
           }
           return SPRUCE_SHORT;
@@ -887,32 +898,32 @@ public class TerrainGenerator {
        return OAK;
     }
 
-    private int trunkForSpecies(int species, int ox, int oz) {
+   private int trunkForSpecies(int species, int ox, int oz) {
+       Random cr = columnRand(ox, oz);
        if (species == BIRCH) {
-          return 5 + nonneg(hash2(this.seed ^ 0x9E3779B9L, ox, oz), 3);
+          return 5 + cr.nextInt(3);
        }
        if (species == BIG_OAK) {
-          return 6 + nonneg(hash2(this.seed ^ 0x9E3779B9L, ox, oz), 4);
+          return 6 + cr.nextInt(4);
        }
        if (species == SPRUCE_SHORT) {
-          return 6 + nonneg(hash2(this.seed ^ 0x9E3779B9L, ox, oz), 4);
+          return 6 + cr.nextInt(4);
        }
        if (species == SPRUCE_TALL) {
-          return 7 + nonneg(hash2(this.seed ^ 0x9E3779B9L, ox, oz), 5);
+          return 7 + cr.nextInt(5);
        }
        if (species == SWAMP_OAK) {
-          return 5 + nonneg(hash2(this.seed ^ 0x9E3779B9L, ox, oz), 4);
+          return 5 + cr.nextInt(4);
        }
-       return TRUNK_MIN + nonneg(hash2(this.seed ^ 0x9E3779B9L, ox, oz), TRUNK_VAR);
+       return TRUNK_MIN + cr.nextInt(TRUNK_VAR);
     }
-
     int vinePart(int x, int y, int z) {
        if (this.treePart(x, y, z) != 0) {
           return 0;
        }
        for (int ox = x - 4; ox <= x + 4; ox++) {
           for (int oz = z - 4; oz <= z + 4; oz++) {
-             if (nonneg(hash2(this.seed, ox, oz), 256) >= 11) {
+             if (columnRand(ox, oz).nextInt(256) >= 11) {
                 continue;
              }
              int th = this.treeTrunkHeight(ox, oz);
@@ -944,7 +955,7 @@ public class TerrainGenerator {
           if (!TreeShapes.swamp(lx - ox, y - top, lz - oz, lx, lz)) {
              continue;
           }
-          if (nonneg(hash2(this.seed ^ (0xB10E00L + dir * 256 + (y & 0xFF)), lx, lz), 4) == 0) {
+          if (new Random(this.k ^ this.l ^ 0xB10E00L ^ dir ^ (y & 0xFF) ^ ((long)lx * 341873128712L + (long)lz * 132897987541L)).nextInt(4) == 0) {
              return true;
           }
        }
@@ -983,11 +994,12 @@ public class TerrainGenerator {
        }
        int stem = 0;
        int kind = SHROOM_BROWN_KIND;
-       if (nonneg(hash2(this.seed, ox, oz), 256) < 1) {
+       Random cr = columnRand(ox, oz);
+       if (cr.nextInt(256) == 0) {
           int biome = this.genBiomeAt(ox, oz);
           if (biome == GenBiomes.MUSHROOM_ISLAND || biome == GenBiomes.MUSHROOM_SHORE) {
-             kind = nonneg(hash2(this.seed ^ 0x5A2001AL, ox, oz), 2);
-             stem = 4 + nonneg(hash2(this.seed ^ 0x57A1FA1L, ox, oz), 3);
+             kind = cr.nextInt(2);
+             stem = 4 + cr.nextInt(3);
              int base = this.heightAt(ox, oz);
              int ground = this.blockAt(ox, base, oz, base);
              if (!(base > SEA_LEVEL + 1 && base + stem + 2 < this.depth
@@ -1009,7 +1021,7 @@ public class TerrainGenerator {
        int n = 0;
        for (int ox = x - 3; ox <= x + 3; ox++) {
           for (int oz = z - 3; oz <= z + 3; oz++) {
-             if (nonneg(hash2(this.seed, ox, oz), 256) >= 1) {
+             if (columnRand(ox, oz).nextInt(256) != 0) {
                 continue;
              }
              int stem = this.shroomStemHeight(ox, oz);
@@ -1160,15 +1172,15 @@ public class TerrainGenerator {
        int n = 0;
        for (int ox = x - CANOPY_R; ox <= x + CANOPY_R; ox++) {
           for (int oz = z - CANOPY_R; oz <= z + CANOPY_R; oz++) {
-             if (nonneg(hash2(this.seed, ox, oz), 256) >= 11) {
+             if (columnRand(ox, oz).nextInt(256) >= 11) {
                 continue;
              }
              int biome = this.genBiomeAt(ox, oz);
              int attempts = treeAttempts(biome);
-             if (nonneg(hash2(this.seed ^ 0xBEEFL, ox, oz), 10) == 0) {
+             if (columnRand(ox, oz).nextInt(10) == 0) {
                 attempts++;
              }
-             if (attempts <= 0 || nonneg(hash2(this.seed, ox, oz), 256) >= attempts) {
+             if (attempts <= 0 || columnRand(ox, oz).nextInt(256) >= attempts) {
                 continue;
              }
              int th = this.treeTrunkHeight(ox, oz);
@@ -1211,7 +1223,7 @@ public class TerrainGenerator {
           int dz = z - oz;
           int log = logForSpecies(species);
           int leaves = leavesForSpecies(species);
-          int trunkHi = base + trunkTop(species, th, ox, oz, this.seed);
+          int trunkHi = base + trunkTop(species, th, ox, oz);
           if (dx == 0 && dz == 0 && y > base && y <= trunkHi) {
              return log;
           }
@@ -1270,17 +1282,18 @@ public class TerrainGenerator {
          return hit == NO_DISCS ? null : hit;
       }
       java.util.ArrayList<Disc> discs = new java.util.ArrayList<>(5);
+      Random rand = new Random(this.k ^ this.l ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L));
       for (int i = 0; i < 3; i++) {
-         Disc sand = this.sandDisc(ccx, ccz, i);
+         Disc sand = this.sandDisc(rand, ccx, ccz, i);
          if (sand != null) {
             discs.add(sand);
          }
       }
-      Disc clay = this.clayDisc(ccx, ccz);
+      Disc clay = this.clayDisc(rand, ccx, ccz);
       if (clay != null) {
          discs.add(clay);
       }
-      Disc last = this.sandDisc(ccx, ccz, 3);
+      Disc last = this.sandDisc(rand, ccx, ccz, 3);
       if (last != null) {
          discs.add(last);
       }
@@ -1290,28 +1303,27 @@ public class TerrainGenerator {
       return out == NO_DISCS ? null : out;
    }
 
-   private Disc clayDisc(int ccx, int ccz) {
-      int lx = ccx * 16 + nonneg(hash2(this.seed ^ 0xC1A701L, ccx, ccz), 16);
-      int lz = ccz * 16 + nonneg(hash2(this.seed ^ 0xC1A702L, ccx, ccz), 16);
+   private Disc clayDisc(Random rand, int ccx, int ccz) {
+      int lx = ccx * 16 + rand.nextInt(16);
+      int lz = ccz * 16 + rand.nextInt(16);
       int wy = this.topWaterAt(lx, lz);
       if (wy < 0) {
          return null;
       }
       return new Disc(lx, wy, lz,
-         2 + nonneg(hash2(this.seed ^ 0xC1A703L, ccx, ccz), 2), 1,
+         2 + rand.nextInt(2), 1,
          Blocks.DIRT_ID, Blocks.CLAY_ID, Blocks.CLAY_ID);
    }
 
-   private Disc sandDisc(int ccx, int ccz, int i) {
-      long salt = this.seed ^ (0x5A0D01L + i);
-      int lx = ccx * 16 + nonneg(hash2(salt ^ 0x11L, ccx, ccz), 16);
-      int lz = ccz * 16 + nonneg(hash2(salt ^ 0x22L, ccx, ccz), 16);
+   private Disc sandDisc(Random rand, int ccx, int ccz, int i) {
+      int lx = ccx * 16 + rand.nextInt(16);
+      int lz = ccz * 16 + rand.nextInt(16);
       int wy = this.topWaterAt(lx, lz);
       if (wy < 0) {
          return null;
       }
       return new Disc(lx, wy, lz,
-         2 + nonneg(hash2(salt ^ 0x33L, ccx, ccz), 5), 2,
+         2 + rand.nextInt(5), 2,
          Blocks.DIRT_ID, Blocks.GRASS_ID, Blocks.SAND_ID);
    }
 
@@ -1394,10 +1406,11 @@ public class TerrainGenerator {
       if (hit != null) {
          return hit == NO_PATCH ? null : hit;
       }
+      Random rand = new Random(this.k ^ this.l ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L));
       PumpkinPatch patch = null;
-      if (nonneg(hash2(this.seed ^ 0x9A17C01L, ccx, ccz), 32) == 0) {
-         patch = new PumpkinPatch(ccx * 16 + nonneg(hash2(this.seed ^ 0x9A17C02L, ccx, ccz), 16),
-            ccz * 16 + nonneg(hash2(this.seed ^ 0x9A17C03L, ccx, ccz), 16));
+      if (rand.nextInt(32) == 0) {
+         patch = new PumpkinPatch(ccx * 16 + rand.nextInt(16),
+            ccz * 16 + rand.nextInt(16));
       }
       this.patchCache.put(key, patch == null ? NO_PATCH : patch);
       return patch;
@@ -1479,10 +1492,10 @@ public class TerrainGenerator {
          return NO_PTS;
       }
       int[] out = new int[n * 2];
+      Random cr = new Random(this.k ^ this.l ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L));
       for (int i = 0; i < n; i++) {
-         long s = salt ^ (long)i * 0x9E3779B9L;
-         out[i * 2] = ccx * 16 + nonneg(hash2(this.seed ^ s ^ 0x11L, ccx, ccz), 16);
-         out[i * 2 + 1] = ccz * 16 + nonneg(hash2(this.seed ^ s ^ 0x22L, ccx, ccz), 16);
+         out[i * 2] = ccx * 16 + cr.nextInt(16);
+         out[i * 2 + 1] = ccz * 16 + cr.nextInt(16);
       }
       return out;
    }
@@ -1502,9 +1515,10 @@ public class TerrainGenerator {
       int[] cactus = this.sprayCenters(0xDE006L, ccx, ccz, cactusAttempts(cb));
       int[] lily = this.sprayCenters(0xDE007L, ccx, ccz,
          cb == GenBiomes.SWAMPLAND ? 4 : 0);
-      int[] gbrown = nonneg(hash2(this.seed ^ 0xDE008L, ccx, ccz), 4) == 0
+      Random cr = new Random(this.k ^ this.l ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L));
+      int[] gbrown = cr.nextInt(4) == 0
          ? this.sprayCenters(0xDE009L, ccx, ccz, 1) : NO_PTS;
-      int[] gred = nonneg(hash2(this.seed ^ 0xDE00AL, ccx, ccz), 8) == 0
+      int[] gred = cr.nextInt(8) == 0
          ? this.sprayCenters(0xDE00BL, ccx, ccz, 1) : NO_PTS;
       DecorPatches out = new DecorPatches(flower, grass, dead, mush, reed,
          cactus, lily, gbrown, gred);
@@ -1513,7 +1527,7 @@ public class TerrainGenerator {
    }
 
    private boolean rollP(double p, long salt, int x, int z) {
-      return p > 0.0D && (nonneg(hash2(this.seed ^ salt, x, z), 4096) / 4096.0D) < p;
+      return p > 0.0D && (new Random(this.k ^ this.l ^ salt ^ ((long)x * 341873128712L + (long)z * 132897987541L)).nextInt(4096) / 4096.0D) < p;
    }
 
    private float decorSlot(int x, int z, int slot) {
@@ -1736,7 +1750,7 @@ public class TerrainGenerator {
           return 0;
        }
        if (this.rollP(this.decorSlot(x, z, DECOR_MUSH), 0x5A2001L, x, z)) {
-          return nonneg(hash2(this.seed ^ 0xB20A01L, x, z), 3) == 0
+          return columnRand(x, z).nextInt(3) == 0
              ? Blocks.MUSHROOM_RED_ID : Blocks.MUSHROOM_BROWN_ID;
        }
        if (this.rollP(this.decorSlot(x, z, DECOR_GBROWN), 0x610BA1L, x, z)) {
@@ -1746,7 +1760,7 @@ public class TerrainGenerator {
           return Blocks.MUSHROOM_RED_ID;
        }
        if (this.rollP(this.decorSlot(x, z, DECOR_FLOWER), 0xC0E4L, x, z)) {
-          return nonneg(hash2(this.seed ^ 0xF10AE2L, x, z), 4) == 0
+          return columnRand(x, z).nextInt(4) == 0
              ? Blocks.ROSE_ID : Blocks.DANDELION_ID;
        }
        if (this.rollP(this.decorSlot(x, z, DECOR_GRASS), 0x62A55L, x, z)) {
