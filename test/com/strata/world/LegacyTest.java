@@ -1,10 +1,12 @@
 package com.strata.world;
 
 import com.strata.blocks.Blocks;
+import java.io.File;
 
 public class LegacyTest {
     public static void main(String[] args) throws Exception {
         writeLegacyFixture();
+        new File("level.dat.imported").delete();
         Level l = new Level(64);
         boolean ok = true;
         ok &= check(l.getTile(10, 60, 20) == 3, "legacy floating block kept");

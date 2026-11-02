@@ -27,11 +27,19 @@ public class GenTest {
         for (int x = -64; x < 64; x++)
             for (int z = -64; z < 64; z++) {
                 int h = g.heightAt(x, z);
+                int raw = g.rawHeightAt(x, z);
                 if (h < lo) lo = h;
                 if (h > hi) hi = h;
                 check(h >= 1 && h <= 127, "height in range @" + x + "," + z);
                 int s = g.blockAt(x, h, z, h);
-                if (s == 0) {
+                boolean carved = (s == 0);
+                if (!carved && raw != h) {
+                    int sRaw = g.blockAt(x, raw, z, raw);
+                    if (sRaw == 0) {
+                        carved = true;
+                    }
+                }
+                if (carved) {
                     breaks++;
                 } else {
                     check(s == Blocks.GRASS_ID || s == Blocks.SAND_ID || s == Blocks.DIRT_ID || s == Blocks.STONE_ID

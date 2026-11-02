@@ -118,7 +118,7 @@ public class VegTest {
                      spruce++;
                   }
                   check(g.treeTrunkHeight(x, z) > 0, "trunk rooted @" + x + "," + z);
-                  int base = g.heightAt(x, z);
+                  int base = g.rawHeightAt(x, z);
                   int th = g.treeTrunkHeight(x, z);
                   check(y > base && y <= base + th, "trunk in range @" + x + "," + y + "," + z);
                   check(id == TerrainGenerator.logForSpecies(g.treeSpecies(x, z)), "log matches species @" + x + "," + z);
@@ -399,7 +399,8 @@ public class VegTest {
    }
 
    static boolean coverGround(TerrainGenerator g, int x, int z, int h) {
-      return g.blockAt(x, h, z, h) == Blocks.GRASS_ID;
+      int ground = g.blockAt(x, h, z, h);
+      return ground == Blocks.GRASS_ID || ground == Blocks.DIRT_ID || ground == Blocks.MYCELIUM_ID;
    }
 
    static boolean sideLeaf(int x, int y, int z, TerrainGenerator g) {
@@ -422,7 +423,7 @@ public class VegTest {
             int species = g.treeSpecies(ox, oz);
             boolean cone = species == TerrainGenerator.SPRUCE_SHORT
                || species == TerrainGenerator.SPRUCE_TALL;
-            int top = g.heightAt(ox, oz) + th;
+            int top = g.rawHeightAt(ox, oz) + th;
             boolean leaf;
             if (cone) {
                leaf = TreeShapes.spruce(x - ox, y - top, z - oz, th,

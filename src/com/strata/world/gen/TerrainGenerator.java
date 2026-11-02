@@ -7,7 +7,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class TerrainGenerator {
 
-
          public static final long DEFAULT_SEED = 17L;
     public static final int SEA_LEVEL = 63;
     public static final int MAX_HEIGHT = 56;
@@ -40,6 +39,23 @@ public class TerrainGenerator {
    private final GenChunkFill fill;
    private final CaveCarver carver;
    private final RavineCarver ravine;
+   private final ConcurrentHashMap<Long, Random> chunkRands = new ConcurrentHashMap<>();
+   private final ConcurrentHashMap<Long, ColumnDecor[]> decorColumns = new ConcurrentHashMap<>();
+
+   static final class ColumnDecor {
+      int treeSpecies;   
+      int treeHeight;    
+      int treeBase;      
+      int treeTopRoll;   
+      int flowerType;    
+      int grass;         
+      int mushroomKind;  
+      int deadbush;      
+      int reed;          
+      int cactus;        
+      int lily;          
+      ColumnDecor() {}
+   }
 
     public TerrainGenerator(long seed, int depth) {
        this(seed, depth, false);
@@ -538,6 +554,7 @@ public class TerrainGenerator {
       if (this.voided) {
          return 0;
       }
+      System.out.println("DEBUG heightAt: x=" + x + " z=" + z);
       Lake[] lakes = this.columnLakes(x, z);
       boolean covered = false;
       for (Lake lake : lakes) {
@@ -580,14 +597,22 @@ public class TerrainGenerator {
            return 0;
         }
         int v = this.fillCell(x, y, z);
+        System.out.println("DEBUG blockAt: x=" + x + " y=" + y + " z=" + z + " h=" + h + " v=" + v);
         if (v == Blocks.WATER_ID) {
-           int[] cands = this.treeCandidates(x, z);
-           for (int i = 0; i < cands.length; i += 5) {
-              if (x == cands[i] && z == cands[i + 1]
-                 && y > cands[i + 4]
-                 && y <= cands[i + 4] + trunkTop(cands[i + 3], cands[i + 2],
-                    cands[i], cands[i + 1])) {
-                 return logForSpecies(cands[i + 3]);
+           int ccx = Math.floorDiv(x, 16);
+           int ccz = Math.floorDiv(z, 16);
+           this.ensureDecorated(ccx, ccz);
+           long dkey = ((long)ccx << 32) | (ccz & 0xFFFFFFFFL);
+           ColumnDecor[] cols = this.decorColumns.get(dkey);
+           if (cols != null) {
+              int idx = (x & 15) * 16 + (z & 15);
+              ColumnDecor cd = cols[idx];
+              if (cd.treeSpecies != 0 && cd.treeHeight > 0) {
+                 int base = cd.treeBase;
+                 int trunkHi = base + trunkTop(cd.treeSpecies, cd.treeHeight, x, z);
+                 if (y > base && y <= trunkHi) {
+                    return logForSpecies(cd.treeSpecies);
+                 }
               }
            }
         }
@@ -624,6 +649,7 @@ public class TerrainGenerator {
             }
          }
         if (v == 0 && y > h) {
+           System.out.println("DEBUG blockAt calling treePart: (" + x + "," + y + "," + z + ") v=" + v + " h=" + h);
            int tree = this.treePart(x, y, z);
            if (tree != 0) {
               return tree;
@@ -734,19 +760,291 @@ public class TerrainGenerator {
       return this.blockAt(x, y, z, this.heightAt(x, z));
    }
 
-    static long hash2(long seed, int x, int z) {
-       long h = seed + (long)x * 0x8DA6B343L + (long)z * 0xD8163841L;
-       h = (h ^ (h >>> 30)) * 0xBF58476D1CE4E5B9L;
-       h = (h ^ (h >>> 27)) * 0x94D049BB133111EBL;
-       return h ^ (h >>> 31);
-    }
-
-    static int nonneg(long h, int mod) {
-       return (int)((h & Long.MAX_VALUE) % mod);
+    Random chunkRand(int ccx, int ccz) {
+       long key = ((long)ccx << 32) | (ccz & 0xFFFFFFFFL);
+       return this.chunkRands.computeIfAbsent(key, k ->
+          new Random(this.k ^ this.l ^ ((long)ccx * 341873128712L + (long)ccz * 132897987541L)));
     }
 
     Random columnRand(int x, int z) {
        return new Random(this.k ^ this.l ^ ((long)x * 341873128712L + (long)z * 132897987541L));
+    }
+
+    private void ensureDecorated(int ccx, int ccz) {
+       long key = ((long)ccx << 32) | (ccz & 0xFFFFFFFFL);
+       if (this.decorColumns.get(key) != null) {
+          return;
+       }
+       ColumnDecor[] cols = this.decorateChunk(ccx, ccz);
+       this.decorColumns.putIfAbsent(key, cols);
+    }
+
+    private ColumnDecor[] decorateChunk(int ccx, int ccz) {
+       Random rand = this.chunkRand(ccx, ccz);
+       ColumnDecor[] cols = new ColumnDecor[256];
+       for (int i = 0; i < 256; i++) {
+          cols[i] = new ColumnDecor();
+       }
+
+       for (int t = 0; t < 10; t++) {
+          int lx = ccx * 16 + rand.nextInt(16);
+          int lz = ccz * 16 + rand.nextInt(16);
+          int idx = (lx & 15) * 16 + (lz & 15);
+          this.tryTree(rand, cols, lx, lz, idx);
+       }
+       if (rand.nextInt(10) == 0) {
+          int lx = ccx * 16 + rand.nextInt(16);
+          int lz = ccz * 16 + rand.nextInt(16);
+          int idx = (lx & 15) * 16 + (lz & 15);
+          this.tryTree(rand, cols, lx, lz, idx);
+       }
+
+       int cb = this.genBiomeAt(ccx * 16 + 8, ccz * 16 + 8);
+       this.drawSpray(rand, cols, ccx, ccz, cb);
+
+       if (rand.nextInt(4) == 0) {
+          int lx = ccx * 16 + rand.nextInt(16);
+          int lz = ccz * 16 + rand.nextInt(16);
+          int idx = (lx & 15) * 16 + (lz & 15);
+          if (this.canMushroomGrow(lx, lz, idx, cols, cb)) {
+             cols[idx].mushroomKind = 1; 
+          }
+       }
+       if (rand.nextInt(8) == 0) {
+          int lx = ccx * 16 + rand.nextInt(16);
+          int lz = ccz * 16 + rand.nextInt(16);
+          int idx = (lx & 15) * 16 + (lz & 15);
+          if (this.canMushroomGrow(lx, lz, idx, cols, cb)) {
+             cols[idx].mushroomKind = 2; 
+          }
+       }
+
+       int treeCount = 0;
+       for (ColumnDecor cd : cols) {
+          if (cd.treeSpecies != 0) treeCount++;
+       }
+       System.out.println("DEBUG decorateChunk: (" + ccx + "," + ccz + ") biome=" + cb + " trees=" + treeCount);
+       return cols;
+    }
+
+    private void tryTree(Random rand, ColumnDecor[] cols, int lx, int lz, int idx) {
+       int biome = this.genBiomeAt(lx, lz);
+       int attempts = treeAttempts(biome);
+       if (rand.nextInt(10) == 0) {
+          attempts++;
+       }
+       if (attempts <= 0) {
+          return;
+       }
+       int species = this.pickSpeciesFromRand(rand, lx, lz, biome);
+       int th = this.trunkHeightFromRand(rand, species, lx, lz);
+       if (th == 0) {
+          return;
+       }
+       int base = this.rawHeightAt(lx, lz);
+       if (base < 0) return;
+       int ground = this.fillCell(lx, base, lz);
+       if (ground != Blocks.GRASS_ID && ground != Blocks.DIRT_ID) {
+          return;
+       }
+       int top = base + th;
+       int r = species == SWAMP_OAK ? 3 : species == SPRUCE_SHORT ? 3
+          : species == SPRUCE_TALL ? 1 + TreeShapes.rootRoll(lx, lz, 2,
+             3 + TreeShapes.rootRoll(lx, lz, 1, 2) + 1) : 2;
+       boolean room = top + 1 < this.depth;
+       for (int dx = -r; room && dx <= r; dx++) {
+          for (int dz = -r; room && dz <= r; dz++) {
+             for (int y = base + 1; room && y <= top + 1; y++) {
+                int f = this.fillCell(lx + dx, y, lz + dz);
+                if (y == base + 1) {
+                   if (f != 0 && f != Blocks.WATER_ID) {
+                      room = false;
+                   }
+                } else if (f != 0) {
+                   room = false;
+                }
+             }
+          }
+       }
+       if (!room) {
+          return;
+       }
+       cols[idx].treeSpecies = species;
+       cols[idx].treeHeight = th;
+       cols[idx].treeBase = base;
+       if (species == SPRUCE_SHORT) {
+          cols[idx].treeTopRoll = rand.nextInt(3);
+       }
+    }
+
+    private int pickSpeciesFromRand(Random rand, int ox, int oz, int biome) {
+       if (biome == GenBiomes.FOREST) {
+          if (rand.nextInt(5) == 0) {
+             return BIRCH;
+           }
+          if (rand.nextInt(10) == 0) {
+             return BIG_OAK;
+           }
+          return OAK;
+       }
+       if (biome == GenBiomes.TAIGA) {
+          if (rand.nextInt(3) == 0) {
+             return SPRUCE_TALL;
+           }
+           return SPRUCE_SHORT;
+        }
+        if (biome == GenBiomes.SWAMPLAND) {
+           return SWAMP_OAK;
+        }
+        return OAK;
+    }
+
+    private int trunkHeightFromRand(Random rand, int species, int ox, int oz) {
+       if (species == BIRCH) {
+          return 5 + rand.nextInt(3);
+       }
+       if (species == BIG_OAK) {
+          return 6 + rand.nextInt(4);
+       }
+       if (species == SPRUCE_SHORT) {
+          return 6 + rand.nextInt(4);
+       }
+       if (species == SPRUCE_TALL) {
+          return 7 + rand.nextInt(5);
+       }
+       if (species == SWAMP_OAK) {
+          return 5 + rand.nextInt(4);
+       }
+       return TRUNK_MIN + rand.nextInt(TRUNK_VAR);
+    }
+
+    private void drawSpray(Random rand, ColumnDecor[] cols, int ccx, int ccz, int cb) {
+       int nFlower = flowerAttempts(cb);
+       for (int i = 0; i < nFlower; i++) {
+          int lx = ccx * 16 + rand.nextInt(16);
+          int lz = ccz * 16 + rand.nextInt(16);
+          int idx = (lx & 15) * 16 + (lz & 15);
+          if (cols[idx].flowerType == 0 && this.canFlowerGrow(lx, lz, cb)) {
+             cols[idx].flowerType = rand.nextInt(4) == 0 ? 1 : 2; 
+          }
+       }
+       int nGrass = grassAttempts(cb);
+       for (int i = 0; i < nGrass; i++) {
+          int lx = ccx * 16 + rand.nextInt(16);
+          int lz = ccz * 16 + rand.nextInt(16);
+          int idx = (lx & 15) * 16 + (lz & 15);
+          if (cols[idx].grass == 0 && this.canGrassGrow(lx, lz, cb)) {
+             cols[idx].grass = 1;
+          }
+       }
+       int nDead = deadbushAttempts(cb);
+       for (int i = 0; i < nDead; i++) {
+          int lx = ccx * 16 + rand.nextInt(16);
+          int lz = ccz * 16 + rand.nextInt(16);
+          int idx = (lx & 15) * 16 + (lz & 15);
+          if (cols[idx].deadbush == 0 && this.canDeadbushGrow(lx, lz, cb)) {
+             cols[idx].deadbush = 1;
+          }
+       }
+       int nMush = mushroomAttempts(cb);
+       for (int i = 0; i < nMush; i++) {
+          int lx = ccx * 16 + rand.nextInt(16);
+          int lz = ccz * 16 + rand.nextInt(16);
+          int idx = (lx & 15) * 16 + (lz & 15);
+          if (cols[idx].mushroomKind == 0 && this.canGiantMushroomGrow(lx, lz, cb)) {
+             cols[idx].mushroomKind = rand.nextInt(2) == 0 ? 1 : 2;
+             cols[idx].reed = 0; 
+             cols[idx].treeHeight = 4 + rand.nextInt(3); 
+          }
+       }
+       int nReed = reedAttempts(cb);
+       for (int i = 0; i < nReed; i++) {
+          int lx = ccx * 16 + rand.nextInt(16);
+          int lz = ccz * 16 + rand.nextInt(16);
+          int idx = (lx & 15) * 16 + (lz & 15);
+          if (cols[idx].reed == 0 && this.canReedGrow(lx, lz, cb)) {
+             cols[idx].reed = 1;
+             cols[idx].treeHeight = 2 + rand.nextInt(3); 
+             int rr = rand.nextInt(18);
+             int rh = rr < 11 ? 2 : rr < 16 ? 3 : 4;
+             cols[idx].treeHeight = rh;
+          }
+       }
+       int nCactus = cactusAttempts(cb);
+       for (int i = 0; i < nCactus; i++) {
+          int lx = ccx * 16 + rand.nextInt(16);
+          int lz = ccz * 16 + rand.nextInt(16);
+          int idx = (lx & 15) * 16 + (lz & 15);
+          if (cols[idx].cactus == 0 && this.canCactusGrow(lx, lz, cb)) {
+             cols[idx].cactus = 1;
+             int rr = rand.nextInt(18);
+             int ch = rr < 11 ? 1 : rr < 16 ? 2 : 3;
+             cols[idx].treeHeight = ch;
+          }
+       }
+       if (cb == GenBiomes.SWAMPLAND) {
+          for (int i = 0; i < 4; i++) {
+             int lx = ccx * 16 + rand.nextInt(16);
+             int lz = ccz * 16 + rand.nextInt(16);
+             int idx = (lx & 15) * 16 + (lz & 15);
+             if (cols[idx].lily == 0 && this.canLilyGrow(lx, lz, cb)) {
+                cols[idx].lily = 1;
+             }
+          }
+       }
+    }
+
+    private boolean canFlowerGrow(int lx, int lz, int cb) {
+       int h = this.rawHeightAt(lx, lz);
+       if (h < 0) return false;
+       int ground = this.fillCell(lx, h, lz);
+       return ground == Blocks.GRASS_ID && h > SEA_LEVEL + 1;
+    }
+
+    private boolean canGrassGrow(int lx, int lz, int cb) {
+       int h = this.rawHeightAt(lx, lz);
+       if (h < 0) return false;
+       int ground = this.fillCell(lx, h, lz);
+       return ground == Blocks.GRASS_ID || ground == Blocks.DIRT_ID || ground == Blocks.MYCELIUM_ID;
+    }
+
+    private boolean canDeadbushGrow(int lx, int lz, int cb) {
+       int h = this.rawHeightAt(lx, lz);
+       if (h < 0) return false;
+       int ground = this.fillCell(lx, h, lz);
+       return ground == Blocks.SAND_ID;
+    }
+
+    private boolean canGiantMushroomGrow(int lx, int lz, int cb) {
+       return cb == GenBiomes.MUSHROOM_ISLAND || cb == GenBiomes.MUSHROOM_SHORE;
+    }
+
+    private boolean canReedGrow(int lx, int lz, int cb) {
+       int h = this.rawHeightAt(lx, lz);
+       if (h < SEA_LEVEL - 1 || h > SEA_LEVEL + 1) return false;
+       int ground = this.fillCell(lx, h, lz);
+       if (ground != Blocks.SAND_ID && ground != Blocks.GRASS_ID && ground != Blocks.DIRT_ID) return false;
+       return this.nearWaterAt(lx, h, lz);
+    }
+
+    private boolean canCactusGrow(int lx, int lz, int cb) {
+       int h = this.rawHeightAt(lx, lz);
+       if (h < SEA_LEVEL) return false;
+       int ground = this.fillCell(lx, h, lz);
+       return ground == Blocks.SAND_ID;
+    }
+
+    private boolean canLilyGrow(int lx, int lz, int cb) {
+       int h = this.rawHeightAt(lx, lz);
+       return h <= SEA_LEVEL && this.fillCell(lx, h, lz) == Blocks.WATER_ID;
+    }
+
+    private boolean canMushroomGrow(int lx, int lz, int idx, ColumnDecor[] cols, int cb) {
+       int h = this.rawHeightAt(lx, lz);
+       if (h < 0) return false;
+       int ground = this.fillCell(lx, h, lz);
+       return (cb == GenBiomes.MUSHROOM_ISLAND || cb == GenBiomes.MUSHROOM_SHORE)
+          && (ground == Blocks.MYCELIUM_ID || ground == Blocks.GRASS_ID || ground == Blocks.DIRT_ID);
     }
 
     private final ConcurrentHashMap<Long, Integer> trunkCache = new ConcurrentHashMap<>();
@@ -817,86 +1115,41 @@ public class TerrainGenerator {
      private final ThreadLocal<Long> computing = new ThreadLocal<>();
 
      private int trunkHeightInner(int ox, int oz, long key) {
-       int th = 0;
-       int species = OAK;
-       Random cr = columnRand(ox, oz);
-       if (cr.nextInt(256) >= 11) {
-          this.trunkCache.put(key, species * 32 + th);
-          return th;
+       int ccx = Math.floorDiv(ox, 16);
+       int ccz = Math.floorDiv(oz, 16);
+       this.ensureDecorated(ccx, ccz);
+       long dkey = ((long)ccx << 32) | (ccz & 0xFFFFFFFFL);
+       ColumnDecor[] cols = this.decorColumns.get(dkey);
+       if (cols == null) {
+          this.trunkCache.put(key, 0);
+          return 0;
        }
-       int biome = this.genBiomeAt(ox, oz);
-       int attempts = treeAttempts(biome);
-       if (cr.nextInt(10) == 0) {
-          attempts++;
-       }
-         if (attempts > 0 && cr.nextInt(256) < attempts) {
-            species = this.pickSpecies(ox, oz, biome);
-            th = this.trunkForSpecies(species, ox, oz);
-            int base = this.heightAt(ox, oz);
-            int ground = this.blockAt(ox, base, oz, base);
-            if (ground != Blocks.GRASS_ID && ground != Blocks.DIRT_ID) {
-               th = 0;
-            } else {
-               int top = base + th;
-               int r = species == SWAMP_OAK ? 3 : species == SPRUCE_SHORT ? 3
-                  : species == SPRUCE_TALL ? 1 + TreeShapes.rootRoll(ox, oz, 2,
-                     3 + TreeShapes.rootRoll(ox, oz, 1, 2) + 1) : 2;
-               boolean room = top + 1 < this.depth;
-               for (int dx = -r; room && dx <= r; dx++) {
-                  for (int dz = -r; room && dz <= r; dz++) {
-                     for (int y = base + 1; room && y <= top + 1; y++) {
-                        int f = this.fillCell(ox + dx, y, oz + dz);
-                        if (y == base + 1) {
-                           if (f != 0 && f != Blocks.WATER_ID) {
-                              room = false;
-                           }
-                        } else if (f != 0) {
-                           room = false;
-                        }
-                     }
-                  }
-               }
-               if (!room) {
-                  th = 0;
-               }
-            }
-         }
-        this.trunkCache.put(key, species * 32 + th);
-        return th;
+       int idx = (ox & 15) * 16 + (oz & 15);
+       ColumnDecor cd = cols[idx];
+       int species = cd.treeSpecies;
+       int th = cd.treeHeight;
+       this.trunkCache.put(key, species * 32 + th);
+       return th;
      }
 
-     int trunkTop(int species, int th, int ox, int oz) {
+    int trunkTop(int species, int th, int ox, int oz) {
        if (species == SPRUCE_TALL) {
           return th - 1;
        }
        if (species == SPRUCE_SHORT) {
-          return th - columnRand(ox, oz).nextInt(3);
+          int ccx = Math.floorDiv(ox, 16);
+          int ccz = Math.floorDiv(oz, 16);
+          this.ensureDecorated(ccx, ccz);
+          long dkey = ((long)ccx << 32) | (ccz & 0xFFFFFFFFL);
+          ColumnDecor[] cols = this.decorColumns.get(dkey);
+          if (cols == null) {
+             return th - 1;
+          }
+          int idx = (ox & 15) * 16 + (oz & 15);
+          return th - cols[idx].treeTopRoll;
        }
        return th;
      }
-
-    private int pickSpecies(int ox, int oz, int biome) {
-       Random cr = columnRand(ox, oz);
-       if (biome == GenBiomes.FOREST) {
-          if (cr.nextInt(5) == 0) {
-             return BIRCH;
-          }
-          if (cr.nextInt(10) == 0) {
-             return BIG_OAK;
-          }
-          return OAK;
-       }
-       if (biome == GenBiomes.TAIGA) {
-          if (cr.nextInt(3) == 0) {
-             return SPRUCE_TALL;
-          }
-          return SPRUCE_SHORT;
-       }
-       if (biome == GenBiomes.SWAMPLAND) {
-          return SWAMP_OAK;
-       }
-       return OAK;
-    }
 
    private int trunkForSpecies(int species, int ox, int oz) {
        Random cr = columnRand(ox, oz);
@@ -1211,35 +1464,53 @@ public class TerrainGenerator {
 
     private static final int[] NO_CANDS = new int[0];
 
-    int treePart(int x, int y, int z) {
-       int[] c = this.treeCandidates(x, z);
-       for (int i = 0; i < c.length; i += 5) {
-          int ox = c[i];
-          int oz = c[i + 1];
-          int th = c[i + 2];
-          int species = c[i + 3];
-          int base = c[i + 4];
-          int dx = x - ox;
-          int dz = z - oz;
-          int log = logForSpecies(species);
-          int leaves = leavesForSpecies(species);
-          int trunkHi = base + trunkTop(species, th, ox, oz);
-          if (dx == 0 && dz == 0 && y > base && y <= trunkHi) {
-             return log;
-          }
-          int top = base + th;
-          boolean cone = species == SPRUCE_SHORT || species == SPRUCE_TALL;
-          boolean leaf;
-          if (cone) {
-             leaf = TreeShapes.spruce(dx, y - top, dz, th,
-                species == SPRUCE_TALL, x, z);
-          } else if (species == SWAMP_OAK) {
-             leaf = TreeShapes.swamp(dx, y - top, dz, x, z);
-          } else {
-             leaf = TreeShapes.round(dx, y - top, dz, x, z);
-          }
-          if (leaf) {
-             return leaves;
+        int treePart(int x, int y, int z) {
+       int ccx = Math.floorDiv(x, 16);
+       int ccz = Math.floorDiv(z, 16);
+       this.ensureDecorated(ccx, ccz);
+       long dkey = ((long)ccx << 32) | (ccz & 0xFFFFFFFFL);
+       ColumnDecor[] cols = this.decorColumns.get(dkey);
+       if (cols == null) {
+          return 0;
+       }
+       int scanR = CANOPY_R + 2;
+       for (int ox = x - scanR; ox <= x + scanR; ox++) {
+          for (int oz = z - scanR; oz <= z + scanR; oz++) {
+             int oxx = Math.floorDiv(ox, 16);
+             int ozc = Math.floorDiv(oz, 16);
+             if (oxx != ccx || ozc != ccz) {
+                continue;
+             }
+             int idx2 = (ox & 15) * 16 + (oz & 15);
+             ColumnDecor cd = cols[idx2];
+             if (cd.treeSpecies == 0) {
+                continue;
+             }
+             int base = cd.treeBase;
+             int th = cd.treeHeight;
+             int species = cd.treeSpecies;
+             int dx = x - ox;
+             int dz = z - oz;
+             int log = logForSpecies(species);
+             int leaves = leavesForSpecies(species);
+             int trunkHi = base + trunkTop(species, th, ox, oz);
+             if (dx == 0 && dz == 0 && y > base && y <= trunkHi) {
+                return log;
+             }
+             int top = base + th;
+             boolean cone = species == SPRUCE_SHORT || species == SPRUCE_TALL;
+             boolean leaf;
+             if (cone) {
+                leaf = TreeShapes.spruce(dx, y - top, dz, th,
+                   species == SPRUCE_TALL, x, z);
+             } else if (species == SWAMP_OAK) {
+                leaf = TreeShapes.swamp(dx, y - top, dz, x, z);
+             } else {
+                leaf = TreeShapes.round(dx, y - top, dz, x, z);
+             }
+             if (leaf) {
+                return leaves;
+             }
           }
        }
        return 0;
@@ -1448,7 +1719,7 @@ public class TerrainGenerator {
             if (w <= 0.0D) {
                continue;
             }
-            if ((nonneg(hash2(this.seed ^ 0x9A17C1AL, x, z), 4096) / 4096.0D) < w) {
+            if (columnRand(x, z).nextInt(4096) / 4096.0D < w) {
                return true;
             }
          }
@@ -1698,13 +1969,15 @@ public class TerrainGenerator {
     }
 
     static int reedHeight(int x, int z, long seed) {
-       int r = nonneg(hash2(seed ^ 0x2EED11L, x, z), 18);
-       return r < 11 ? 2 : r < 16 ? 3 : 4;
+       Random r = new Random(seed ^ ((long)x * 341873128712L + (long)z * 132897987541L));
+       int rr = r.nextInt(18);
+       return rr < 11 ? 2 : rr < 16 ? 3 : 4;
     }
 
     static int cactusHeight(int x, int z, long seed) {
-       int r = nonneg(hash2(seed ^ 0xCAC711L, x, z), 18);
-       return r < 11 ? 1 : r < 16 ? 2 : 3;
+       Random r = new Random(seed ^ ((long)x * 341873128712L + (long)z * 132897987541L));
+       int rr = r.nextInt(18);
+       return rr < 11 ? 1 : rr < 16 ? 2 : 3;
     }
 
     int stalkPart(int x, int y, int z, int h) {

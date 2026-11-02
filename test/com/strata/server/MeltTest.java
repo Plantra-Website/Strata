@@ -46,6 +46,7 @@ public class MeltTest {
       check(s.level().getTile(x - 1, h + 1, z) == 0, "snow layer melts away");
       check(s.level().getTile(x + 8, h + 1, z) == Blocks.ICE_ID, "distant ice survives");
 
+      s.level().setTile(x + 2, h, z, Blocks.DIRT_ID);
       s.level().setTile(x + 2, h + 1, z, Blocks.ICE_ID);
       s.level().setTile(x + 2, h + 2, z, Blocks.SAND_ID);
       s.level().armMeltCheck(x + 2, h + 1, z, 5);
