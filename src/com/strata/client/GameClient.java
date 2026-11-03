@@ -413,6 +413,7 @@ public class GameClient implements Runnable {
    public void run() {
       try {
          this.initGl();
+         this.setGameState(GameState.TITLE);
        } catch (Exception e) {
           Log.error("boot", "failed to start", e);
             JOptionPane.showMessageDialog(null, e.toString(), "Failed to start Strata", JOptionPane.ERROR_MESSAGE);
