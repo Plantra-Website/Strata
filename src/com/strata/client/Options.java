@@ -24,6 +24,7 @@ public class Options {
    public int keyQuit = Keyboard.KEY_DELETE;
    public int keyInventory = Keyboard.KEY_E;
    public int keyGive = Keyboard.KEY_EQUALS;
+   public int keyCraft = Keyboard.KEY_C;
    public int viewRadius = Config.VIEW_RADIUS;
    public float sensitivity = 1.0F;
    public int guiScale = 0;
@@ -95,6 +96,7 @@ public class Options {
          else if (name.equals("keyQuit")) this.keyQuit = key;
          else if (name.equals("keyInventory")) this.keyInventory = key;
          else if (name.equals("keyGive")) this.keyGive = key;
+         else if (name.equals("keyCraft")) this.keyCraft = key;
          else Log.warn("options", "unknown option '" + name + "', ignoring");
       } catch (NumberFormatException e) {
          Log.warn("options", "bad value '" + value + "' for " + name + ", keeping default");
@@ -128,6 +130,7 @@ public class Options {
          out.println("keyQuit=" + Keyboard.getKeyName(this.keyQuit));
          out.println("keyInventory=" + Keyboard.getKeyName(this.keyInventory));
          out.println("keyGive=" + Keyboard.getKeyName(this.keyGive));
+         out.println("keyCraft=" + Keyboard.getKeyName(this.keyCraft));
          out.println("viewRadius=" + this.viewRadius);
          out.println("sensitivity=" + this.sensitivity);
          out.println("guiScale=" + this.guiScale);

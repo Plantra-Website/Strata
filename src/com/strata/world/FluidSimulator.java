@@ -132,13 +132,17 @@ final class FluidSimulator {
       if (below + 1 >= 3) {
          return;
       }
-      int stage = this.level.getData(x, y, z);
+      int data = this.level.getData(x, y, z);
+      int stage = data & 0x0F;
+      boolean placed = (data & Level.STALK_PLACED) != 0;
+      int nextData = placed ? Level.STALK_PLACED : 0;
       if (stage >= 15) {
          this.level.setTile(x, y + 1, z, id);
-         this.level.setData(x, y, z, 0);
+         this.level.setData(x, y + 1, z, nextData);
+         this.level.setData(x, y, z, nextData);
          this.scheduleTick(x, y + 1, z, GROWTH_TICKS);
       } else {
-         this.level.setData(x, y, z, stage + 1);
+         this.level.setData(x, y, z, stage + 1 | nextData);
       }
       this.scheduleTick(x, y, z, GROWTH_TICKS);
    }
@@ -409,7 +413,9 @@ final class FluidSimulator {
             } else if (Blocks.isSapling(id)) {
                this.scheduleTick(x, y, z, SAPLING_TICKS);
             } else if (id == Blocks.REED_ID || id == Blocks.CACTUS_ID) {
-               this.scheduleTick(x, y, z, GROWTH_TICKS);
+               if ((this.level.getData(x, y, z) & Level.STALK_PLACED) != 0) {
+                  this.scheduleTick(x, y, z, GROWTH_TICKS);
+               }
             } else if (id == Blocks.ICE_ID || id == Blocks.SNOW_LAYER_ID
                || id == Blocks.SNOW_BLOCK_ID) {
                this.scheduleTick(x, y, z, MELT_TICKS);
@@ -432,7 +438,9 @@ final class FluidSimulator {
             } else if (Blocks.isSapling(id)) {
                this.scheduleTick(x, y, z, SAPLING_TICKS);
             } else if (id == Blocks.REED_ID || id == Blocks.CACTUS_ID) {
-               this.scheduleTick(x, y, z, GROWTH_TICKS);
+               if ((this.level.getData(x, y, z) & Level.STALK_PLACED) != 0) {
+                  this.scheduleTick(x, y, z, GROWTH_TICKS);
+               }
             } else if (id == Blocks.ICE_ID || id == Blocks.SNOW_LAYER_ID
                || id == Blocks.SNOW_BLOCK_ID) {
                this.scheduleTick(x, y, z, MELT_TICKS);

@@ -458,8 +458,8 @@ public class Level implements BlockView, LightWorld {
    public static final int SAPLING_TICKS = FluidSimulator.SAPLING_TICKS;
    public static final int GROWTH_TICKS = FluidSimulator.GROWTH_TICKS;
    public static final int MELT_TICKS = FluidSimulator.MELT_TICKS;
+   public static final int STALK_PLACED = 0x10;
    final FluidSimulator fluids;
-
    public void scheduleTick(int x, int y, int z, int delay) {
       this.fluids.scheduleTick(x, y, z, delay);
    }
@@ -633,7 +633,7 @@ public class Level implements BlockView, LightWorld {
        this.setData(x, y, z, state.data);
     }
 
-   void setData(int x, int y, int z, int data) {
+   public void setData(int x, int y, int z, int data) {
       if (y < 0 || y >= this.depth) {
          return;
       }

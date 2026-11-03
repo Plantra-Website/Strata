@@ -25,11 +25,11 @@ public class BootTest {
       check(Boot.platformDir("Linux", "amd64").equals("linux-x64"), "linux dir");
       check(Boot.platformDir("", "").equals("linux-x64"), "unknown os dir falls back to linux");
       check(java.util.Arrays.equals(Boot.nativeLibs("mac-arm64"),
-         new String[]{"liblwjgl.dylib"}), "mac libs");
+         new String[]{"liblwjgl.dylib", "openal.dylib"}), "mac libs");
       check(java.util.Arrays.equals(Boot.nativeLibs("windows-x64"),
-         new String[]{"lwjgl64.dll"}), "windows libs");
+         new String[]{"lwjgl64.dll", "OpenAL32.dll"}), "windows libs");
       check(java.util.Arrays.equals(Boot.nativeLibs("linux-x64"),
-         new String[]{"liblwjgl64.so"}), "linux libs");
+         new String[]{"liblwjgl64.so", "libopenal.so.1"}), "linux libs");
 
       if (failures == 0) System.out.println("BOOT PASS");
       else { System.out.println(failures + " FAILURES"); System.exit(1); }

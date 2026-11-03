@@ -17,7 +17,7 @@ import org.lwjgl.opengl.GL11;
 public class Gui {
    private int width;
    private int height;
-   private int lastScale = 1;
+   int lastScale = 1;
    private int lastLoggedW = -1;
    private int lastLoggedH = -1;
    private int lastLoggedS = -1;
@@ -394,11 +394,11 @@ public class Gui {
       return s == null ? 0 : s.length() * 6;
    }
 
-   private void drawGlyph(Tesselator t, int x, int y, char ch, int col) {
+   void drawGlyph(Tesselator t, int x, int y, char ch, int col) {
       this.drawGlyph(t, x, y, ch, col, 8, 1);
    }
 
-   private void drawGlyph(Tesselator t, int x, int y, char ch, int col, int glyphPx, int shadowPx) {
+   void drawGlyph(Tesselator t, int x, int y, char ch, int col, int glyphPx, int shadowPx) {
       float a = (col >> 24 & 0xFF) / 255.0F;
       float r = (col >> 16 & 0xFF) / 255.0F;
       float g = (col >> 8 & 0xFF) / 255.0F;
@@ -444,7 +444,7 @@ public class Gui {
       }
    }
 
-   private void drawString(Tesselator t, int x, int y, String s) {
+   void drawString(Tesselator t, int x, int y, String s) {
       if (s == null) {
          return;
       }
@@ -456,6 +456,31 @@ public class Gui {
          this.drawGlyph(t, x + i * 6 + 1, y + 1, ch, 0xFF3f3f3f);
          this.drawGlyph(t, x + i * 6, y, ch, 0xFFFFFFFF);
       }
+   }
+
+   void drawString(Tesselator t, int x, int y, String s, int col) {
+      if (s == null) {
+         return;
+      }
+      float a = (col >> 24 & 0xFF) / 255.0F;
+      float r = (col >> 16 & 0xFF) / 255.0F;
+      float g = (col >> 8 & 0xFF) / 255.0F;
+      float b = (col & 0xFF) / 255.0F;
+      for (int i = 0; i < s.length(); i++) {
+         char ch = s.charAt(i);
+         if (ch < 32 || ch > 126) {
+            continue;
+         }
+         this.drawGlyph(t, x + i * 6 + 1, y + 1, ch, (int)(a * 255) << 24 | 0x3f3f3f);
+         this.drawGlyph(t, x + i * 6, y, ch, (int)(a * 255) << 24 | ((int)(r * 255) << 16) | ((int)(g * 255) << 8) | (int)(b * 255));
+      }
+   }
+
+   void drawCenteredString(Tesselator t, int cx, int y, String s) {
+      if (s == null) {
+         return;
+      }
+      this.drawString(t, cx - s.length() * 3, y, s);
    }
 
    private void renderDebug(String[] lines) {
@@ -498,7 +523,7 @@ public class Gui {
       t.vertex((x + size) * s, y * s, 0.0F);
    }
 
-   private void fillQuad(Tesselator t, int x0, int y0, int x1, int y1, int col) {
+   void fillQuad(Tesselator t, int x0, int y0, int x1, int y1, int col) {
       float a = (col >> 24 & 0xFF) / 255.0F;
       float r = (col >> 16 & 0xFF) / 255.0F;
       float g = (col >> 8 & 0xFF) / 255.0F;

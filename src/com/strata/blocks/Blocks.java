@@ -52,6 +52,7 @@ public final class Blocks {
    public static final int MUSHROOM_CAP_RED_ID = 47;
    public static final int SNOW_BLOCK_ID = 48;
    public static final int OBSIDIAN_ID = 49;
+   public static final int STICK_ID = 50;
 
    private static final Block[] BY_ID = new Block[256];
 

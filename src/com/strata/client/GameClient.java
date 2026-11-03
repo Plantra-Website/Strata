@@ -2,7 +2,9 @@ package com.strata.client;
 
 import com.strata.HitResult;
 import com.strata.blocks.AtlasStitcher;
+import com.strata.blocks.Block;
 import com.strata.blocks.BlockTags;
+import com.strata.blocks.CubeBlock;
 import com.strata.blocks.Blocks;
 import com.strata.core.Config;
 import com.strata.core.DayCycle;
@@ -10,6 +12,7 @@ import com.strata.core.Debug;
 import com.strata.core.Log;
 import com.strata.core.MathHelper;
 import com.strata.core.Profiler;
+import com.strata.core.SoundEngine;
 import com.strata.core.Timer;
 import com.strata.net.BreakEffect;
 import com.strata.net.BulkTiles;
@@ -20,6 +23,7 @@ import com.strata.net.InventorySync;
 import com.strata.net.ItemRemove;
 import com.strata.net.FallingSpawn;
 import com.strata.net.HurtSelf;
+import com.strata.net.Respawn;
 import com.strata.net.ItemSpawn;
 import com.strata.net.MobHurt;
 import com.strata.net.MobSpawn;
@@ -33,15 +37,18 @@ import com.strata.net.SpectateToggle;
 import com.strata.net.TileUpdate;
 import com.strata.net.TimeCycle;
 import com.strata.net.TimeUpdate;
+import com.strata.server.CraftingManager;
 import com.strata.server.GameServer;
 import com.strata.server.Inventory;
 import com.strata.server.ItemStack;
 import com.strata.server.Player;
+import com.strata.server.Recipe;
 import com.strata.server.Zombie;
 import com.strata.world.Level;
 import com.strata.world.mesh.LevelRenderer;
 import com.strata.world.mesh.Raycaster;
 import com.strata.world.mesh.Textures;
+import com.strata.world.mesh.Tesselator;
 import com.strata.world.mesh.Chunk;
 import com.strata.world.mesh.ChunkShader;
 import java.io.File;
@@ -61,6 +68,12 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.util.glu.GLU;
 
 public class GameClient implements Runnable {
+   public enum GameState {
+      TITLE, PLAYING, PAUSED, DEAD
+   }
+   public enum WeatherType {
+      CLEAR, RAIN, SNOW
+   }
    private int width;
    private int height;
    private FrameTap frameTap;
@@ -99,6 +112,19 @@ public class GameClient implements Runnable {
    private boolean prevTermLMB = false;
    private boolean prevTermRMB = false;
    private int terminalScale = 1;
+
+   private boolean craftingOpen = false;
+   private final int[] craftingGrid = new int[4]; 
+   private final ItemStack craftingOutput = new ItemStack();
+
+   private GameState gameState = GameState.TITLE;
+   private WeatherType weatherType = WeatherType.CLEAR;
+   private int weatherTimer = 0;
+   private float weatherAccum = 0.0F;
+   private float cloudDrift = 0.0F;
+   private int menuSelected = 0;
+   private String[] menuButtons = new String[0];
+   private long deathTime = 0L;
 
    public void setTerminalScale(int scale) {
       if (scale >= 1 && scale <= 8) {
@@ -188,7 +214,7 @@ public class GameClient implements Runnable {
       }
    }
 
-   public void init() throws LWJGLException, IOException {
+   public void initGl() throws LWJGLException, IOException {
       mark("init start");
       AtlasStitcher.validate();
       BlockTags.load();
@@ -221,6 +247,12 @@ public class GameClient implements Runnable {
       GL11.glMatrixMode(GL11.GL_PROJECTION);
       GL11.glLoadIdentity();
       GL11.glMatrixMode(GL11.GL_MODELVIEW);
+      mark("gl ready");
+      CraftingManager.init();
+   }
+
+   public void initWorld() throws IOException {
+      mark("world init start");
       this.conn = new LocalConnection();
       this.server = new GameServer(this.conn, this.worldDir, this.seedOverride, this.importImage != null);
       mark("server ready (seed=" + this.server.seed() + " time=" + this.server.timeOfDay() + ")");
@@ -378,7 +410,7 @@ public class GameClient implements Runnable {
    @Override
    public void run() {
       try {
-         this.init();
+         this.initGl();
        } catch (Exception e) {
           Log.error("boot", "failed to start", e);
             JOptionPane.showMessageDialog(null, e.toString(), "Failed to start Strata", JOptionPane.ERROR_MESSAGE);
@@ -414,6 +446,34 @@ public class GameClient implements Runnable {
                 }
              } else if (Mouse.isGrabbed()) {
                 Mouse.setGrabbed(false);
+             }
+              if (this.craftingOpen) {
+                 this.handleCraftingInput(active);
+                 this.renderCrafting(this.timer.alpha);
+                 frames++;
+                 while (System.currentTimeMillis() >= lastTime + 1000L) {
+                    Log.raw(frames + " fps, " + Chunk.updates + " visible=" + Display.isVisible() + " active=" + Display.isActive());
+                   Chunk.updates = 0;
+                   Chunk.uploadNs = 0L;
+                   lastTime += 1000L;
+                   this.fps = frames;
+                   frames = 0;
+                 }
+                 continue;
+              }
+             if (this.gameState != GameState.PLAYING) {
+                this.handleMenuInput(active);
+                this.renderMenu(this.timer.alpha);
+                frames++;
+                while (System.currentTimeMillis() >= lastTime + 1000L) {
+                   Log.raw(frames + " fps, " + Chunk.updates + " visible=" + Display.isVisible() + " active=" + Display.isActive());
+                  Chunk.updates = 0;
+                  Chunk.uploadNs = 0L;
+                  lastTime += 1000L;
+                  this.fps = frames;
+                  frames = 0;
+                }
+                continue;
              }
              long frameStart = System.nanoTime();
              this.timer.advanceTime();
@@ -513,7 +573,7 @@ public class GameClient implements Runnable {
       Packet p;
       while ((p = this.conn.pollClient()) != null) {
          if (p instanceof TileUpdate u) {
-             this.level.setTile(u.x, u.y, u.z, Blocks.stateOf(u.type, u.data));
+             this.level.setTile(u.x, u.y, u.z, Blocks.stateOf(u.type, u.data));             if (u.type != 0) SoundEngine.playSound("place", u.x + 0.5F, u.y + 0.5F, u.z + 0.5F, 0.5F, 1.0F);
          } else if (p instanceof PlayerState s) {
              this.player.applyState(s.x, s.y, s.z, s.onGround, s.spectator, s.hp);
             this.destroyProgress = s.breakProgress;
@@ -522,20 +582,27 @@ public class GameClient implements Runnable {
                this.updateTitle();
                 Log.info("debug", "spectator " + (s.spectator ? "ON (WASD fly, Space up, Shift down)" : "OFF"));
             }
+             if (s.death && this.gameState == GameState.PLAYING) {
+                this.setGameState(GameState.DEAD);
+             }
          } else if (p instanceof TimeUpdate) {
             this.clientTime = ((TimeUpdate)p).time;
          } else if (p instanceof BreakEffect e) {
              this.particleEngine.addBlockDestroyParticles(e.x, e.y, e.z, e.texIndex);
+             SoundEngine.playSound("break", e.x + 0.5F, e.y + 0.5F, e.z + 0.5F, 0.6F, 1.0F);
          } else if (p instanceof ItemSpawn s) {
              this.itemRenderer.spawn(s.entityId, s.x, s.y, s.z, s.xd, s.yd, s.zd, s.blockId);
+             SoundEngine.playSound("item_pickup", s.x, s.y, s.z, 0.5F, 1.0F);
          } else if (p instanceof FallingSpawn s) {
              this.fallingRenderer.spawn(s.entityId, s.blockId, s.x, s.y, s.z);
          } else if (p instanceof MobSpawn s) {
             if (s.mobType == MobSpawn.ZOMBIE) {
                this.mobRenderer.spawn(s.entityId, s.x, s.y, s.z);
             }
+             SoundEngine.playSound("mob_spawn", s.x, s.y, s.z, 0.7F, 0.9F);
          } else if (p instanceof MobHurt s) {
             this.mobRenderer.hurt(s.entityId, s.hp, s.xd, s.yd, s.zd);
+            
          } else if (p instanceof ItemRemove) {
             this.itemRenderer.remove(((ItemRemove)p).entityId);
             this.fallingRenderer.remove(((ItemRemove)p).entityId);
@@ -554,6 +621,7 @@ public class GameClient implements Runnable {
 
    public void tick() {
       this.particleEngine.tick();
+      SoundEngine.setListener(this.player.x, this.player.y, this.player.z);
       this.itemRenderer.tick(this.player.bb);
       this.fallingRenderer.tick();
       this.mobRenderer.tick(this.player.bb, this.player.x, this.player.y, this.player.z, this.clientTime);
@@ -565,6 +633,11 @@ public class GameClient implements Runnable {
          }
       }
       this.tickAmbient();
+      this.updateWeather();
+      this.spawnWeatherParticles();
+      if (this.player.hp <= 0 && this.gameState == GameState.PLAYING) {
+         this.setGameState(GameState.DEAD);
+      }
    }
 
    private void tickAmbient() {
@@ -572,6 +645,8 @@ public class GameClient implements Runnable {
       if (!this.prevTickGround && this.player.onGround && fallSpeed > 0.15F) {
          this.particleEngine.addPuff(this.player.x, this.player.bb.y0, this.player.z,
             Blocks.particleTile(Blocks.DIRT_ID));
+         SoundEngine.playSound("land", this.player.x, this.player.bb.y0, this.player.z,
+            Math.min(1.0F, fallSpeed / 2.0F), 1.0F);
       }
       this.prevTickY = this.player.y;
       this.prevTickGround = this.player.onGround;
@@ -591,6 +666,8 @@ public class GameClient implements Runnable {
          if (this.level.getTile(e[0], e[1], e[2]) == Blocks.TORCH_ID) {
             this.particleEngine.addEmber(e[0] + 0.5F, e[1] + 0.7F, e[2] + 0.5F);
             this.particleEngine.addSmoke(e[0] + 0.5F, e[1] + 0.7F, e[2] + 0.5F);
+            SoundEngine.playSound("torch", e[0] + 0.5F, e[1] + 0.7F, e[2] + 0.5F,
+               0.3F, 0.8F + (float)Math.random() * 0.4F);
             lit++;
          }
       }
@@ -616,7 +693,82 @@ public class GameClient implements Runnable {
          }
          int[] c = surfaces.get(i);
          this.particleEngine.addBubble(c[0] + 0.5F, c[1] + 1.0F, c[2] + 0.5F);
+         SoundEngine.playSound("lava", c[0] + 0.5F, c[1] + 1.0F, c[2] + 0.5F,
+            0.4F, 0.7F + (float)Math.random() * 0.6F);
          bubbles++;
+      }
+   }
+
+   private void updateWeather() {
+      if (--this.weatherTimer > 0) {
+         return;
+      }
+      float r = (float)Math.random();
+      WeatherType next;
+      if (r < 0.70F) {
+         next = WeatherType.CLEAR;
+      } else if (r < 0.90F) {
+         next = WeatherType.RAIN;
+      } else {
+         next = WeatherType.SNOW;
+      }
+      this.weatherType = next;
+      this.weatherTimer = 1200 + (int)(Math.random() * 6000);
+      this.weatherAccum = 0.0F;
+      this.cloudDrift += 0.1F;
+      if (next != WeatherType.CLEAR) {
+         Log.info("weather", "weather changed to " + next);
+      }
+   }
+
+   private void spawnWeatherParticles() {
+      if (this.weatherType == WeatherType.CLEAR) {
+         return;
+      }
+      float rate = (this.weatherType == WeatherType.SNOW) ? 0.08F : 0.13F;
+      this.weatherAccum += rate;
+      int toSpawn = (int)this.weatherAccum;
+      this.weatherAccum -= toSpawn;
+      if (toSpawn <= 0) {
+         return;
+      }
+      int px = MathHelper.floor(this.player.x);
+      int pz = MathHelper.floor(this.player.z);
+      int view = Config.VIEW_RADIUS * 16;
+      java.util.Random weatherRng = new java.util.Random(this.clientTime);
+      for (int i = 0; i < toSpawn; i++) {
+         int wx = px + weatherRng.nextInt(view * 2) - view;
+         int wz = pz + weatherRng.nextInt(view * 2) - view;
+         int top = this.level.depth - 1;
+         while (top > 0 && this.level.getTile(wx, top, wz) == 0) {
+            top--;
+         }
+         top++; 
+         if (top >= this.level.depth - 2) {
+            continue; 
+         }
+         int spawnY = top + weatherRng.nextInt(8) + 2;
+         float sx = wx + weatherRng.nextFloat();
+         float sz = wz + weatherRng.nextFloat();
+         if (this.weatherType == WeatherType.RAIN) {
+            Particle p = new Particle(this.level, sx, spawnY, sz,
+               0.0F, -0.15F, 0.0F, Blocks.particleTile(Blocks.WATER_ID));
+            p.gravity = 0.0F;
+            p.lifetime = 20 + weatherRng.nextInt(20);
+            p.r = 0.6F; p.g = 0.8F; p.b = 1.0F;
+            p.size = 0.02F;
+            this.particleEngine.add(p);
+         } else {
+            Particle p = new Particle(this.level, sx, spawnY, sz,
+               (weatherRng.nextFloat() - 0.5F) * 0.02F, -0.05F,
+               (weatherRng.nextFloat() - 0.5F) * 0.02F,
+               Blocks.particleTile(Blocks.SNOW_LAYER_ID));
+            p.gravity = 0.0F;
+            p.lifetime = 40 + weatherRng.nextInt(40);
+            p.r = 1.0F; p.g = 1.0F; p.b = 1.0F;
+            p.size = 0.03F;
+            this.particleEngine.add(p);
+         }
       }
    }
 
@@ -637,6 +789,672 @@ public class GameClient implements Runnable {
       GL11.glMatrixMode(GL11.GL_MODELVIEW);
       GL11.glLoadIdentity();
       this.moveCameraToPlayer(a);
+   }
+
+
+   private void handleMenuInput(boolean active) {
+      while (Keyboard.next()) {
+         if (!Keyboard.getEventKeyState()) {
+            continue;
+         }
+         int key = Keyboard.getEventKey();
+         if (key == this.options.keyRelease && this.gameState == GameState.PAUSED) {
+            this.setGameState(GameState.PLAYING);
+            continue;
+         }
+         if (key == Keyboard.KEY_UP) {
+            this.menuSelected = (this.menuSelected - 1 + this.menuButtons.length) % this.menuButtons.length;
+            continue;
+         }
+         if (key == Keyboard.KEY_DOWN) {
+            this.menuSelected = (this.menuSelected + 1) % this.menuButtons.length;
+            continue;
+         }
+         if (key == Keyboard.KEY_RETURN) {
+            this.activateMenuButton();
+            continue;
+         }
+      }
+      while (Mouse.next()) {
+         if (Mouse.getEventButton() == 0 && Mouse.getEventButtonState()) {
+            int gs = Gui.resolveScale(this.options.guiScale, this.width, this.height);
+            int mx = Mouse.getX() / gs;
+            int my = (this.height - Mouse.getY()) / gs;
+            int idx = this.buttonAt(mx, my);
+            if (idx >= 0) {
+               this.menuSelected = idx;
+               this.activateMenuButton();
+            }
+         }
+      }
+   }
+
+    private void handleCraftingInput(boolean active) {
+       while (Keyboard.next()) {
+          if (!Keyboard.getEventKeyState()) {
+             continue;
+          }
+          int key = Keyboard.getEventKey();
+          if (key == this.options.keyCraft || key == this.options.keyRelease) {
+             this.closeCrafting();
+             continue;
+          }
+       }
+       while (Mouse.next()) {
+          if (Mouse.getEventButton() == 0 && Mouse.getEventButtonState()) {
+             int gs = Gui.resolveScale(this.options.guiScale, this.width, this.height);
+             int mx = Mouse.getX() / gs;
+             int my = (this.height - Mouse.getY()) / gs;
+             int slot = this.craftingSlotAt(mx, my);
+             if (slot >= 0) {
+                this.handleCraftingClick(slot);
+             }
+          }
+       }
+    }
+
+   private int buttonAt(int mx, int my) {
+      int bw = 100;
+      int bh = 20;
+      int bx = (this.width - bw) / 2;
+      int by = this.height / 2 - 24;
+      for (int i = 0; i < this.menuButtons.length; i++) {
+         if (mx >= bx && mx < bx + bw && my >= by + i * 26 && my < by + i * 26 + bh) {
+            return i;
+         }
+      }
+      return -1;
+   }
+
+   private void activateMenuButton() {
+      if (this.menuButtons.length == 0) {
+         return;
+      }
+      String label = this.menuButtons[this.menuSelected];
+      switch (this.gameState) {
+         case TITLE:
+            if (label.equals("New Game") || label.equals("Load")) {
+               this.startNewGame();
+            } else if (label.equals("Options")) {
+            } else if (label.equals("Quit")) {
+               System.exit(0);
+            }
+            break;
+         case PAUSED:
+            if (label.equals("Resume")) {
+               this.setGameState(GameState.PLAYING);
+            } else if (label.equals("Options")) {
+            } else if (label.equals("Title")) {
+               this.returnToTitle();
+            } else if (label.equals("Quit")) {
+               System.exit(0);
+            }
+            break;
+         case DEAD:
+            if (label.equals("Respawn")) {
+               this.doRespawn();
+            } else if (label.equals("Title")) {
+               this.returnToTitle();
+            }
+            break;
+      }
+   }
+
+   private void startNewGame() {
+      try {
+         this.initWorld();
+      } catch (IOException e) {
+         Log.error("boot", "failed to start world", e);
+         javax.swing.JOptionPane.showMessageDialog(null,
+            e.toString(), "Failed to start world", javax.swing.JOptionPane.ERROR_MESSAGE);
+         return;
+      }
+      this.setGameState(GameState.PLAYING);
+   }
+
+   private void returnToTitle() {
+      this.setGameState(GameState.TITLE);
+      this.menuButtons = new String[]{"New Game", "Load", "Options", "Quit"};
+      this.menuSelected = 0;
+   }
+
+   private void doRespawn() {
+      this.conn.sendToServer(new Respawn());
+      this.setGameState(GameState.PLAYING);
+   }
+
+   private void setGameState(GameState state) {
+      this.gameState = state;
+      switch (state) {
+         case PLAYING:
+            this.mouseReleased = false;
+            this.leftDown = false;
+            if (!Mouse.isGrabbed()) {
+               Mouse.setCursorPosition(this.width / 2, this.height / 2);
+               Mouse.setGrabbed(true);
+            }
+            break;
+         case PAUSED:
+            this.menuButtons = new String[]{"Resume", "Options", "Title", "Quit"};
+            this.menuSelected = 0;
+            this.mouseReleased = true;
+            if (Mouse.isGrabbed()) {
+               Mouse.setGrabbed(false);
+            }
+            break;
+         case DEAD:
+            this.menuButtons = new String[]{"Respawn", "Title"};
+            this.menuSelected = 0;
+            this.mouseReleased = true;
+            if (Mouse.isGrabbed()) {
+               Mouse.setGrabbed(false);
+            }
+            break;
+         case TITLE:
+            this.menuButtons = new String[]{"New Game", "Load", "Options", "Quit"};
+            this.menuSelected = 0;
+            this.mouseReleased = true;
+            if (Mouse.isGrabbed()) {
+               Mouse.setGrabbed(false);
+            }
+            break;
+      }
+   }
+
+    private void openCrafting() {
+       this.craftingOpen = true;
+       this.mouseReleased = true;
+       this.leftDown = false;
+       if (Mouse.isGrabbed()) {
+          Mouse.setGrabbed(false);
+       }
+    }
+
+    private void closeCrafting() {
+       this.craftingOpen = false;
+       this.mouseReleased = false;
+       if (!this.craftingOutput.isEmpty()) {
+          this.inventory.add(this.craftingOutput.blockId, this.craftingOutput.count);
+          this.craftingOutput.clear();
+       }
+       for (int i = 0; i < 4; i++) {
+          if (this.craftingGrid[i] != 0) {
+             this.inventory.add(this.craftingGrid[i], 1);
+             this.craftingGrid[i] = 0;
+          }
+       }
+       if (!this.held.isEmpty()) {
+          this.inventory.add(this.held.blockId, this.held.count);
+          this.held.clear();
+       }
+    }
+
+    private int craftingSlotAt(int mx, int my) {
+       int gx = (this.width - 176) / 2;
+       int gy = (this.height - 182) / 2;
+       for (int i = 0; i < 4; i++) {
+          int cx = gx + 40 + (i % 2) * 18;
+          int cy = gy + 40 + (i / 2) * 18;
+          if (mx >= cx && mx < cx + 18 && my >= cy && my < cy + 18) {
+             return i;
+          }
+       }
+       int ox = gx + 110;
+       int oy = gy + 60;
+       if (mx >= ox && mx < ox + 18 && my >= oy && my < oy + 18) {
+          return 4;
+       }
+       return -1;
+   }
+
+    private void updateCraftingOutput() {
+       Recipe r = CraftingManager.findMatch(this.craftingGrid);
+       if (r != null) {
+          this.craftingOutput.blockId = r.outputId;
+          this.craftingOutput.count = r.outputCount;
+       } else {
+          this.craftingOutput.clear();
+       }
+    }
+
+    private void craft() {
+       Recipe r = CraftingManager.findMatch(this.craftingGrid);
+       if (r == null) {
+          return;
+       }
+       for (int i = 0; i < 4; i++) {
+          if (r.input[i] != 0 && this.craftingGrid[i] == r.input[i]) {
+             this.craftingGrid[i] = 0;
+          }
+       }
+       this.updateCraftingOutput();
+       int left = this.craftingOutput.count;
+       if (!this.held.isEmpty() && this.held.blockId == r.outputId) {
+          int room = ItemStack.MAX - this.held.count;
+          int take = Math.min(room, left);
+          this.held.count += take;
+          left -= take;
+          if (left <= 0) {
+             this.craftingOutput.clear();
+             return;
+          }
+       }
+       if (this.inventory.add(r.outputId, left)) {
+          this.craftingOutput.clear();
+       } else {
+          this.craftingOutput.count = left;
+       }
+    }
+
+    private void handleCraftingClick(int slotIdx) {
+       if (slotIdx < 0 || slotIdx > 4) {
+          return;
+       }
+       if (slotIdx == 4) {
+          this.craft();
+          return;
+       }
+       int gridId = this.craftingGrid[slotIdx];
+       if (this.held.isEmpty()) {
+          if (gridId != 0) {
+             this.held.blockId = gridId;
+             this.held.count = 1;
+             this.craftingGrid[slotIdx] = 0;
+          }
+       } else {
+          if (gridId == 0) {
+             this.craftingGrid[slotIdx] = this.held.blockId;
+             this.held.count--;
+             if (this.held.count <= 0) {
+                this.held.clear();
+             }
+          } else if (gridId == this.held.blockId) {
+             this.craftingGrid[slotIdx] = gridId;
+             this.held.count--;
+             if (this.held.count <= 0) {
+                this.held.clear();
+             }
+          } else {
+             int b = this.craftingGrid[slotIdx];
+             this.craftingGrid[slotIdx] = this.held.blockId;
+             this.held.blockId = b;
+          }
+       }
+       this.updateCraftingOutput();
+    }
+
+    private void renderCrafting(float a) {
+       GL11.glMatrixMode(GL11.GL_PROJECTION);
+       GL11.glLoadIdentity();
+       GL11.glOrtho(0.0, this.width, this.height, 0.0, 100.0, 300.0);
+       GL11.glMatrixMode(GL11.GL_MODELVIEW);
+       GL11.glLoadIdentity();
+       GL11.glTranslatef(0.0F, 0.0F, -200.0F);
+
+       GL11.glEnable(GL11.GL_BLEND);
+       GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+       GL11.glDisable(GL11.GL_TEXTURE_2D);
+       Tesselator t = Tesselator.SHARED;
+       t.init();
+       this.gui.fillQuad(t, 0, 0, this.width, this.height, 0xAA000000);
+       t.flush();
+       GL11.glDisable(GL11.GL_BLEND);
+
+       int gx = (this.width - 176) / 2;
+       int gy = (this.height - 182) / 2;
+       Textures.bind(Textures.loadTexture("/textures/gui/container/inventory.png", 9728));
+       GL11.glEnable(GL11.GL_TEXTURE_2D);
+       t.init();
+       this.gui.fillQuad(t, gx, gy, gx + 176, gy + 182, 0xFF222222);
+       t.flush();
+       GL11.glDisable(GL11.GL_TEXTURE_2D);
+
+       Textures.bind(Textures.loadTexture("/textures/ascii.png", 9728));
+       GL11.glEnable(GL11.GL_TEXTURE_2D);
+       GL11.glEnable(GL11.GL_BLEND);
+       GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+       t.init();
+       String title = "Crafting";
+       int tx = gx + (176 - title.length() * 6) / 2;
+       this.gui.drawString(t, tx, gy + 10, title, 0xFFFFFFFF);
+       t.flush();
+       GL11.glDisable(GL11.GL_TEXTURE_2D);
+       GL11.glDisable(GL11.GL_BLEND);
+
+       int gridY = gy + 40;
+       GL11.glEnable(GL11.GL_TEXTURE_2D);
+       GL11.glEnable(GL11.GL_BLEND);
+       GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+       t.init();
+       for (int i = 0; i < 4; i++) {
+          int sx = gx + 40 + (i % 2) * 18;
+          int sy = gridY + (i / 2) * 18;
+          this.gui.fillQuad(t, sx, sy, sx + 16, sy + 16, 0xFF555555);
+          int id = this.craftingGrid[i];
+          if (id != 0) {
+             this.renderCraftingSlotItem(t, sx, sy, id);
+          }
+       }
+       int ox = gx + 110;
+       int oy = gy + 60;
+       this.gui.fillQuad(t, ox, oy, ox + 16, oy + 16, 0xFF555555);
+       if (!this.craftingOutput.isEmpty()) {
+          this.renderCraftingSlotItem(t, ox, oy, this.craftingOutput.blockId);
+          Textures.bind(Textures.loadTexture("/textures/ascii.png", 9728));
+          int count = this.craftingOutput.count;
+          if (count > 1) {
+             String s = Integer.toString(count);
+             int dx = ox + 16 - s.length() * 6;
+             int dy = oy + 16 - 8;
+             for (int i = 0; i < s.length(); i++) {
+                char ch = s.charAt(i);
+                this.gui.drawGlyph(t, dx + i * 6 + 1, dy + 1, ch, 0xFF3f3f3f);
+                this.gui.drawGlyph(t, dx + i * 6, dy, ch, 0xFFFFFFFF);
+             }
+          }
+       }
+       t.flush();
+       GL11.glDisable(GL11.GL_TEXTURE_2D);
+       GL11.glDisable(GL11.GL_BLEND);
+
+       Textures.bind(Textures.loadTexture("/textures/ascii.png", 9728));
+       GL11.glEnable(GL11.GL_TEXTURE_2D);
+       GL11.glEnable(GL11.GL_BLEND);
+       GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+       t.init();
+       String hint = "Press C or ESC to close · click output to craft";
+       int hx = gx + (176 - hint.length() * 6) / 2;
+       this.gui.drawString(t, hx, gy + 168, hint, 0xFF808080);
+       t.flush();
+       GL11.glDisable(GL11.GL_TEXTURE_2D);
+       GL11.glDisable(GL11.GL_BLEND);
+    }
+
+    private void renderCraftingSlotItem(Tesselator t, int x, int y, int blockId) {
+       com.strata.blocks.Block b = com.strata.blocks.Blocks.byId(blockId);
+       int texIndex = b != null ? com.strata.blocks.Blocks.particleTile(blockId) : -1;
+       if (texIndex < 0) {
+          return;
+       }
+       float[] r = com.strata.blocks.AtlasStitcher.uv(texIndex);
+       int s = this.gui.lastScale;
+       t.color(1.0F, 1.0F, 1.0F);
+       t.tex(r[0], r[1]);
+       t.vertex(x * s, y * s, 0.0F);
+       t.tex(r[0], r[3]);
+       t.vertex(x * s, (y + 16) * s, 0.0F);
+       t.tex(r[2], r[3]);
+       t.vertex((x + 16) * s, (y + 16) * s, 0.0F);
+       t.tex(r[2], r[1]);
+       t.vertex((x + 16) * s, y * s, 0.0F);
+    }
+
+    private void renderHeldBlock(float a, float day) {
+       Block b = Blocks.byId(this.paintTile);
+       if (b == null) {
+          return;
+       }
+
+       GL11.glDisable(GL11.GL_DEPTH_TEST);
+       GL11.glDisable(GL11.GL_CULL_FACE);
+       GL11.glEnable(GL11.GL_BLEND);
+       GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+       GL11.glDisable(GL11.GL_FOG);
+       GL11.glDisable(GL11.GL_TEXTURE_2D);
+
+       Tesselator t = Tesselator.SHARED;
+       int s = this.gui.lastScale;
+
+       float bx = this.width * 0.9F;
+       float by = this.height * 0.85F;
+       float bob = (float)Math.sin(this.clientTime / 10.0) * 2.0F * s;
+
+       float brightness = 0.5F + 0.5F * day;
+       if (b instanceof CubeBlock) {
+          t.init();
+          t.color(brightness, brightness, brightness);
+          float h = 14.0F * s; 
+          t.tex(0.0F, 0.0F);
+          t.vertex(bx - h, by - bob - h, 0.0F);
+          t.tex(0.0F, 1.0F);
+          t.vertex(bx - h, by - bob + h, 0.0F);
+          t.tex(1.0F, 1.0F);
+          t.vertex(bx + h, by - bob + h, 0.0F);
+          t.tex(1.0F, 0.0F);
+          t.vertex(bx + h, by - bob - h, 0.0F);
+          t.flush();
+       }
+
+       GL11.glDisable(GL11.GL_BLEND);
+       GL11.glEnable(GL11.GL_TEXTURE_2D);
+       GL11.glEnable(GL11.GL_CULL_FACE);
+       GL11.glEnable(GL11.GL_DEPTH_TEST);
+    }
+
+
+    private void renderSkybox(float a, float day) {
+       long ticks = this.clientTime % Config.DAY_LENGTH;
+       if (ticks < 0) {
+          ticks += Config.DAY_LENGTH;
+       }
+       float sunAngle = (float)((ticks / (double)Config.DAY_LENGTH) * Math.PI * 2.0 - Math.PI / 2.0);
+       float sunHeight = (float)Math.sin(sunAngle);
+       boolean dayTime = sunHeight > -0.1F;
+       boolean nightTime = sunHeight < -0.3F;
+
+       GL11.glDisable(GL11.GL_DEPTH_TEST);
+       GL11.glDisable(GL11.GL_CULL_FACE);
+       GL11.glEnable(GL11.GL_BLEND);
+       GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+       GL11.glDisable(GL11.GL_TEXTURE_2D);
+
+       Tesselator t = Tesselator.SHARED;
+
+       if (dayTime) {
+          float sunSize = 0.4F;
+          float glow = Math.max(0.0F, sunHeight + 0.2F);
+          t.init();
+          t.color(1.0F, 0.9F, 0.6F, glow * 0.8F);
+          float sx = (float)Math.cos(sunAngle) * 200.0F;
+          float sy = sunHeight * 200.0F + 50.0F;
+          this.skyQuad(t, sx, sy, sunSize);
+          t.flush();
+       }
+
+       if (nightTime) {
+          float moonSize = 0.3F;
+          float glow = Math.max(0.0F, -sunHeight - 0.1F);
+          t.init();
+          t.color(0.8F, 0.8F, 0.9F, glow * 0.6F);
+          float mx = -(float)Math.cos(sunAngle) * 200.0F;
+          float my = -sunHeight * 200.0F + 50.0F;
+          this.skyQuad(t, mx, my, moonSize);
+          t.flush();
+       }
+
+       if (nightTime) {
+          t.init();
+          t.color(1.0F, 1.0F, 1.0F, 0.6F);
+          java.util.Random starRng = new java.util.Random(Config.DAY_LENGTH / 1000L);
+          for (int i = 0; i < 60; i++) {
+             float sx = starRng.nextFloat() * this.width * 2.0F - this.width;
+             float sy = starRng.nextFloat() * this.height * 2.0F - this.height;
+             if (sy < this.height / 2.0F - 20.0F) {
+                float twinkle = 0.5F + 0.5F * (float)Math.sin(starRng.nextFloat() * 6.28F);
+                this.skyDot(t, sx, sy, 0.03F * twinkle);
+             }
+          }
+          t.flush();
+       }
+
+       GL11.glDisable(GL11.GL_BLEND);
+       GL11.glEnable(GL11.GL_TEXTURE_2D);
+       GL11.glEnable(GL11.GL_CULL_FACE);
+       GL11.glEnable(GL11.GL_DEPTH_TEST);
+    }
+
+    private void skyQuad(Tesselator t, float x, float y, float size) {
+       float s = size * 50.0F;
+       t.vertex(x - s, y - s, 0.0F);
+       t.vertex(x - s, y + s, 0.0F);
+       t.vertex(x + s, y + s, 0.0F);
+       t.vertex(x + s, y - s, 0.0F);
+    }
+
+    private void skyDot(Tesselator t, float x, float y, float size) {
+       float s = size * 50.0F;
+       t.vertex(x - s, y - s, 0.0F);
+       t.vertex(x - s, y + s, 0.0F);
+       t.vertex(x + s, y + s, 0.0F);
+       t.vertex(x + s, y - s, 0.0F);
+    }
+
+    private void renderClouds(float day) {
+       boolean dayTime = day > 0.3F;
+       if (!dayTime && day < 0.7F) {
+       } else if (!dayTime) {
+          return; 
+       }
+       float alpha = dayTime ? 0.5F : 0.25F;
+       float drift = this.cloudDrift * 0.5F;
+
+       GL11.glDisable(GL11.GL_DEPTH_TEST);
+       GL11.glDisable(GL11.GL_CULL_FACE);
+       GL11.glEnable(GL11.GL_BLEND);
+       GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+       GL11.glDisable(GL11.GL_TEXTURE_2D);
+
+       Tesselator t = Tesselator.SHARED;
+       java.util.Random cloudRng = new java.util.Random(0xDEADBEEFL);
+       int cloudCount = 12;
+       float cloudSize = 28.0F;
+       float cloudY = this.height * 0.35F;
+
+       t.init();
+       t.color(1.0F, 1.0F, 1.0F, alpha);
+       for (int i = 0; i < cloudCount; i++) {
+          float cx = (cloudRng.nextFloat() * 2.0F - 1.0F) * this.width + drift * (i * 0.3F + 1.0F);
+          cx = ((cx % this.width) + this.width) % this.width;
+          float cy = cloudY + (cloudRng.nextFloat() - 0.5F) * this.height * 0.4F;
+          if (cy > this.height * 0.15F && cy < this.height * 0.75F) {
+             float s = cloudSize * (0.7F + cloudRng.nextFloat() * 0.6F);
+             t.vertex(cx - s, cy - s * 0.4F, 0.0F);
+             t.vertex(cx - s, cy + s * 0.4F, 0.0F);
+             t.vertex(cx + s, cy + s * 0.4F, 0.0F);
+             t.vertex(cx + s, cy - s * 0.4F, 0.0F);
+          }
+       }
+       t.flush();
+
+       GL11.glDisable(GL11.GL_BLEND);
+       GL11.glEnable(GL11.GL_TEXTURE_2D);
+       GL11.glEnable(GL11.GL_CULL_FACE);
+       GL11.glEnable(GL11.GL_DEPTH_TEST);
+   }
+
+   private void renderMenu(float a) {
+      GL11.glMatrixMode(GL11.GL_PROJECTION);
+      GL11.glLoadIdentity();
+      GL11.glOrtho(0.0, this.width, this.height, 0.0, 100.0, 300.0);
+      GL11.glMatrixMode(GL11.GL_MODELVIEW);
+      GL11.glLoadIdentity();
+      GL11.glTranslatef(0.0F, 0.0F, -200.0F);
+
+      GL11.glEnable(GL11.GL_BLEND);
+      GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+      GL11.glDisable(GL11.GL_TEXTURE_2D);
+      Tesselator t = Tesselator.SHARED;
+      t.init();
+      this.gui.fillQuad(t, 0, 0, this.width, this.height, 0xAA000000);
+      t.flush();
+      GL11.glDisable(GL11.GL_BLEND);
+
+      String title;
+      String subtitle;
+      switch (this.gameState) {
+         case TITLE:
+            title = "STRATA";
+            subtitle = "A blocky voxel sandbox";
+            break;
+         case PAUSED:
+            title = "PAUSED";
+            subtitle = null;
+            break;
+         case DEAD:
+            title = "YOU DIED";
+            subtitle = null;
+            break;
+         default:
+            title = null;
+            subtitle = null;
+            break;
+      }
+      if (title != null) {
+         Textures.bind(Textures.loadTexture("/textures/ascii.png", 9728));
+         GL11.glEnable(GL11.GL_TEXTURE_2D);
+         GL11.glEnable(GL11.GL_BLEND);
+         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+         t.init();
+         int titleX = this.width / 2 - title.length() * 3;
+         this.gui.drawString(t, titleX, this.height / 3, title);
+         if (subtitle != null) {
+            int subX = this.width / 2 - subtitle.length() * 3;
+            this.gui.drawString(t, subX, this.height / 3 + 12, subtitle);
+         }
+         t.flush();
+         GL11.glDisable(GL11.GL_TEXTURE_2D);
+         GL11.glDisable(GL11.GL_BLEND);
+      }
+
+      int bw = 100;
+      int bh = 20;
+      int bx = (this.width - bw) / 2;
+      int by = this.height / 2 - 24;
+      Textures.bind(Textures.loadTexture("/textures/ascii.png", 9728));
+      GL11.glEnable(GL11.GL_TEXTURE_2D);
+      GL11.glEnable(GL11.GL_BLEND);
+      GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+      t.init();
+      for (int i = 0; i < this.menuButtons.length; i++) {
+         String label = this.menuButtons[i];
+         boolean selected = (i == this.menuSelected);
+         int col = selected ? 0xFFFFFFFF : 0xFF808080;
+         this.gui.fillQuad(t, bx, by + i * 26, bx + bw, by + i * 26 + bh, selected ? 0x60FFFFFF : 0x40000000);
+         int tx = bx + (bw - label.length() * 6) / 2;
+         int ty = by + i * 26 + (bh - 8) / 2;
+         this.gui.drawString(t, tx, ty, label, col);
+      }
+      t.flush();
+      GL11.glDisable(GL11.GL_TEXTURE_2D);
+      GL11.glDisable(GL11.GL_BLEND);
+
+      String hint;
+      switch (this.gameState) {
+         case TITLE:
+            hint = "Use arrow keys and Enter, or click a button.";
+            break;
+         case PAUSED:
+            hint = "Press ESC to resume.";
+            break;
+         case DEAD:
+            hint = "Select an option to continue.";
+            break;
+         default:
+            hint = null;
+            break;
+      }
+      if (hint != null) {
+         Textures.bind(Textures.loadTexture("/textures/ascii.png", 9728));
+         GL11.glEnable(GL11.GL_TEXTURE_2D);
+         GL11.glEnable(GL11.GL_BLEND);
+         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+         t.init();
+         int hx = this.width / 2 - hint.length() * 3;
+         this.gui.drawString(t, hx, this.height - 24, hint);
+         t.flush();
+         GL11.glDisable(GL11.GL_TEXTURE_2D);
+         GL11.glDisable(GL11.GL_BLEND);
+      }
    }
 
    private void pick(float a) {
@@ -808,17 +1626,28 @@ public class GameClient implements Runnable {
             if (Keyboard.getEventKey() == this.options.keyRelease) {
                if (this.inventoryOpen) {
                   this.setInventoryOpen(false);
+               } else if (this.gameState == GameState.PLAYING) {
+                  this.setGameState(GameState.PAUSED);
+               } else {
+                  this.mouseReleased = true;
+                  this.leftDown = false;
+                  if (Mouse.isGrabbed()) {
+                     Mouse.setGrabbed(false);
+                  }
+                  Log.info("win", "mouse released; click back in to grab");
                }
-               this.mouseReleased = true;
-               this.leftDown = false;
-               if (Mouse.isGrabbed()) {
-                  Mouse.setGrabbed(false);
-               }
-               Log.info("win", "mouse released; click back in to grab");
             }
 
             if (Keyboard.getEventKey() == this.options.keyInventory) {
                this.setInventoryOpen(!this.inventoryOpen);
+            }
+
+            if (Keyboard.getEventKey() == this.options.keyCraft && this.gameState == GameState.PLAYING) {
+               if (this.craftingOpen) {
+                  this.closeCrafting();
+               } else {
+                  this.openCrafting();
+               }
             }
 
             if (Keyboard.getEventKey() == this.options.keyGive) {
@@ -881,6 +1710,15 @@ public class GameClient implements Runnable {
       float fogR = 0.01F + (0.5F - 0.01F) * day;
       float fogG = 0.02F + (0.8F - 0.02F) * day;
       float fogB = 0.06F + (1.0F - 0.06F) * day;
+      float dim = 1.0F;
+      if (this.weatherType == WeatherType.RAIN) {
+         dim = 0.65F;
+      } else if (this.weatherType == WeatherType.SNOW) {
+         dim = 0.85F;
+      }
+      fogR *= dim;
+      fogG *= dim;
+      fogB *= dim;
       GL11.glClearColor(fogR, fogG, fogB, 0.0F);
       ((Buffer)this.fogColor).clear();
       this.fogColor.put(new float[]{fogR, fogG, fogB, 1.0F});
@@ -931,6 +1769,13 @@ public class GameClient implements Runnable {
       long rPart = System.nanoTime();
 
       GL11.glDisable(GL11.GL_FOG);
+
+      this.renderSkybox(a, day);
+      this.renderClouds(day);
+
+      if (this.paintTile > 0 && this.inventoryOpen == false) {
+         this.renderHeldBlock(a, day);
+      }
 
       long rOver = System.nanoTime();
 

@@ -23,6 +23,7 @@ import com.strata.net.AttackMob;
 import com.strata.net.DebugGive;
 import com.strata.net.FallingSpawn;
 import com.strata.net.HurtSelf;
+import com.strata.net.Respawn;
 import com.strata.net.InputState;
 import com.strata.net.InventorySync;
 import com.strata.net.ItemRemove;
@@ -59,6 +60,7 @@ public class GameServer implements LevelListener {
    private float destroyProgress = 0.0F;
    private HitResult prevHitResult = null;
    private int breakCooldown = 0;
+   private boolean diedThisTick = false;
    private InputState lastInput = new InputState();
    private int autosaveClock = 0;
    private int restlessClock = 0;
@@ -197,6 +199,7 @@ public class GameServer implements LevelListener {
    }
 
    public void tick() {
+      this.diedThisTick = false;
       Packet p;
       while ((p = this.conn.pollServer()) != null) {
          if (p instanceof InputState) {
@@ -244,6 +247,11 @@ public class GameServer implements LevelListener {
              }
           } else if (p instanceof TimeCycle) {
              this.timeOfDay = DayCycle.nextStop(this.timeOfDay, Config.DAY_LENGTH);
+              } else if (p instanceof Respawn) {
+                 if (this.player.hp <= 0) {
+                    this.player.respawn();
+                    Log.info("game", "player respawned");
+                 }
              Log.info("debug", "time cycled to " + DayCycle.stopName(this.timeOfDay, Config.DAY_LENGTH));
           }
       }
@@ -252,6 +260,7 @@ public class GameServer implements LevelListener {
        Profiler.push("sim");
        this.player.tick(this.lastInput);
        if (this.player.hp <= 0) {
+          this.diedThisTick = true;
           Log.info("game", "player died; respawning");
           this.player.respawn();
           this.destroyProgress = 0.0F;
@@ -289,6 +298,7 @@ public class GameServer implements LevelListener {
       state.spectator = this.player.spectator;
       state.breakProgress = this.destroyProgress;
       state.hp = this.player.hp;
+      state.death = this.diedThisTick;
       this.conn.sendToClient(state);
 
       TimeUpdate time = new TimeUpdate();
@@ -749,6 +759,8 @@ public class GameServer implements LevelListener {
       }
       if (p.blockId == Blocks.REED_ID || p.blockId == Blocks.CACTUS_ID) {
          this.level.scheduleTick(x, y, z, Level.GROWTH_TICKS);
+         this.level.setData(x, y, z,
+                        this.level.getData(x, y, z) | Level.STALK_PLACED);
       }
       if (p.blockId == Blocks.TORCH_ID) {
          this.level.armMeltCheck(x, y, z, 5);

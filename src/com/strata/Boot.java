@@ -3,6 +3,7 @@ package com.strata;
 import com.strata.client.GameClient;
 import com.strata.client.TerminalViewer;
 import com.strata.core.Log;
+import com.strata.core.SoundEngine;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -11,7 +12,7 @@ public class Boot {
       preloadNatives();
       GameClient client = new GameClient();
       List<String> viewerArgs = new ArrayList<>();
-      for (int i = 0; i < args.length; i++) {
+for (int i = 0; i < args.length; i++) {
          if ("--seed".equals(args[i]) && i + 1 < args.length) {
             try {
                client.setSeedOverride(Long.parseLong(args[++i]));
@@ -45,8 +46,12 @@ public class Boot {
           inputProc = TerminalViewer.launchInput();
        }
        try {
+          SoundEngine.init();
+          String[] sfx = {"break", "place", "step", "land", "mob_spawn", "mob_hurt", "item_pickup", "torch", "lava"};
+          for (String s : sfx) SoundEngine.load(s);
           client.run();
        } finally {
+          SoundEngine.shutdown();
           TerminalViewer.stop(viewerProc);
           TerminalViewer.stop(inputProc);
           Log.closeFile();
@@ -88,13 +93,26 @@ public class Boot {
    }
 
    static String[] nativeLibs(String platDir) {
+      String[] lwjgl;
       if (platDir.startsWith("windows")) {
-         return new String[]{"lwjgl64.dll"};
+         lwjgl = new String[]{"lwjgl64.dll"};
+      } else if (platDir.startsWith("linux")) {
+         lwjgl = new String[]{"liblwjgl64.so"};
+      } else {
+         lwjgl = new String[]{"liblwjgl.dylib"};
       }
-      if (platDir.startsWith("linux")) {
-         return new String[]{"liblwjgl64.so"};
+      String[] openal;
+      if (platDir.startsWith("windows")) {
+         openal = new String[]{"OpenAL32.dll"};
+      } else if (platDir.startsWith("linux")) {
+         openal = new String[]{"libopenal.so.1"};
+      } else {
+         openal = new String[]{"openal.dylib"};
       }
-      return new String[]{"liblwjgl.dylib"};
+      String[] out = new String[lwjgl.length + openal.length];
+      System.arraycopy(lwjgl, 0, out, 0, lwjgl.length);
+      System.arraycopy(openal, 0, out, lwjgl.length, openal.length);
+      return out;
    }
 
    private static void preloadNatives() {

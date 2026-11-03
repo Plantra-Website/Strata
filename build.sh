@@ -132,7 +132,17 @@ run_tests() {
 
 case "${1:-build}" in
   build) compile; echo BUILD_OK ;;
-  run) shift; compile; echo BUILD_OK; DISPLAY="${DISPLAY:-:99}" LD_LIBRARY_PATH="natives/linux-aarch64:${LD_LIBRARY_PATH:-}" "$JAVA_BIN" $JAVA_FLAGS -cp "out:res:$LIB" com.strata.Boot "$@" ;;
+  run) shift; compile; echo BUILD_OK;
+     # Mirror Boot.platformDir: detect arch instead of hardcoding aarch64 so
+     # dev runs work on x86_64 as well as arm64 (and mac/win if ever used).
+     RUN_OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+     RUN_ARCH="$(uname -m | tr '[:upper:]' '[:lower:]')"
+     case "$RUN_OS" in
+       *darwin*|*mac*) RUN_PLAT="$(case "$RUN_ARCH" in *arm64*|*aarch64*) echo mac-arm64;; *) echo mac-x64;; esac)" ;;
+       *mingw*|*msys*|*cygwin*|*windows*) RUN_PLAT="windows-x64" ;;
+       *) RUN_PLAT="$(case "$RUN_ARCH" in *aarch64*|*arm64*) echo linux-aarch64;; *) echo linux-x64;; esac)" ;;
+     esac
+     DISPLAY="${DISPLAY:-:99}" LD_LIBRARY_PATH="natives/$RUN_PLAT:${LD_LIBRARY_PATH:-}" "$JAVA_BIN" $JAVA_FLAGS -cp "out:res:$LIB" com.strata.Boot "$@" ;;
   test) compile out-test; echo BUILD_OK; run_tests out-test ;;
   strip)
     # Pinned python (Xcode CLT 3.9 — PATH pythons like ~/.local/bin drift

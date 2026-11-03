@@ -14,6 +14,7 @@ public class PlayerState extends Packet {
    public boolean spectator;
    public float breakProgress;
    public int hp;
+   public boolean death;
 
    static {
       Packet.register(13, PlayerState::new);
@@ -31,6 +32,7 @@ public class PlayerState extends Packet {
       int flags = 0;
       if (this.onGround) flags |= 1;
       if (this.spectator) flags |= 2;
+      if (this.death) flags |= 4;
       out.writeByte(flags);
       out.writeFloat(this.breakProgress);
       out.writeInt(this.hp);
@@ -46,6 +48,7 @@ public class PlayerState extends Packet {
       int flags = in.readByte() & 0xFF;
       this.onGround = (flags & 1) != 0;
       this.spectator = (flags & 2) != 0;
+      this.death = (flags & 4) != 0;
       this.breakProgress = in.readFloat();
       this.hp = in.readInt();
       if (!Float.isFinite(this.x) || !Float.isFinite(this.y) || !Float.isFinite(this.z)
