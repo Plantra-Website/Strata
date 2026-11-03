@@ -138,9 +138,11 @@ case "${1:-build}" in
      RUN_OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
      RUN_ARCH="$(uname -m | tr '[:upper:]' '[:lower:]')"
      case "$RUN_OS" in
-       *darwin*|*mac*) RUN_PLAT="$(case "$RUN_ARCH" in *arm64*|*aarch64*) echo mac-arm64;; *) echo mac-x64;; esac)" ;;
+       *darwin*|*mac*)
+         case "$RUN_ARCH" in *arm64*|*aarch64*) RUN_PLAT="mac-arm64" ;; *) RUN_PLAT="mac-x64" ;; esac ;;
        *mingw*|*msys*|*cygwin*|*windows*) RUN_PLAT="windows-x64" ;;
-       *) RUN_PLAT="$(case "$RUN_ARCH" in *aarch64*|*arm64*) echo linux-aarch64;; *) echo linux-x64;; esac)" ;;
+       *)
+         case "$RUN_ARCH" in *aarch64*|*arm64*) RUN_PLAT="linux-aarch64" ;; *) RUN_PLAT="linux-x64" ;; esac ;;
      esac
      DISPLAY="${DISPLAY:-:99}" LD_LIBRARY_PATH="natives/$RUN_PLAT:${LD_LIBRARY_PATH:-}" "$JAVA_BIN" $JAVA_FLAGS -cp "out:res:$LIB" com.strata.Boot "$@" ;;
   test) compile out-test; echo BUILD_OK; run_tests out-test ;;
