@@ -392,7 +392,9 @@ public class GameClient implements Runnable {
 
    public void destroy() {
       try {
-         this.server.save();
+         if (this.server != null) {
+            this.server.save();
+         }
       } finally {
          try {
             this.options.save(new File("options.txt"));
